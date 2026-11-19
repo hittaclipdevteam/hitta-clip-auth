@@ -3,50 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HITTA CLIP - Signing In</title>
+  <title>HITTA CLIP - Sign-in Diagnostics</title>
   <style>
     body {
+      margin: 0;
       background: #111;
       color: white;
       font-family: Arial, sans-serif;
       display: grid;
       place-items: center;
-      min-height: 90vh;
+      min-height: 100vh;
       text-align: center;
     }
+    main { width: min(560px, 90vw); }
+    p { line-height: 1.5; overflow-wrap: anywhere; }
+    code { color: #9ec5ff; }
   </style>
 </head>
 <body>
-  <div>
+  <main>
     <h2>HITTA CLIP</h2>
-    <p id="message">Completing Google sign-in...</p>
-  </div>
-
+    <p id="message">Checking the sign-in response...</p>
+    <p id="details"></p>
+    <p>You can leave this window open while we troubleshoot.</p>
+  </main>
   <script>
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const error = params.get('error_description') || params.get('error');
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const code = params.get('code') || hashParams.get('code');
+    const error = params.get('error_description') || params.get('error') ||
+                  hashParams.get('error_description') || hashParams.get('error');
+    const message = document.getElementById('message');
+    const details = document.getElementById('details');
 
-    const message = {
-      type: 'HITTA_AUTH_CALLBACK',
-      code: code,
-      error: error
-    };
+    const queryKeys = Array.from(params.keys());
+    const hashKeys = Array.from(hashParams.keys());
+    details.textContent =
+      'Authorization code found: ' + (code ? 'YES' : 'NO') +
+      '. URL query fields: ' + (queryKeys.join(', ') || 'none') +
+      '. URL fragment fields: ' + (hashKeys.join(', ') || 'none') +
+      (error ? '. Sign-in error: ' + error : '');
 
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage(
-        message,
+        { type: 'HITTA_AUTH_CALLBACK', code, error },
         'https://html-classic.itch.zone'
       );
-
-      document.getElementById('message').textContent =
-        error ? 'Sign-in failed. You can close this window.' :
-        'Sign-in complete! You can close this window.';
-
-      setTimeout(() => window.close(), 1200);
+      message.textContent = error
+        ? 'Sign-in returned an error. Keep this window open.'
+        : code
+          ? 'Authorization code found and sent to HITTA CLIP. Keep this window open.'
+          : 'No authorization code was returned. Keep this window open.';
     } else {
-      document.getElementById('message').textContent =
-        'Could not connect to the game. Please return to HITTA CLIP.';
+      message.textContent = 'Could not connect to the game. This page was not opened by the game sign-in popup.';
     }
   </script>
 </body>
