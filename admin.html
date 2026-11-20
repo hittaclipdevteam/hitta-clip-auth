@@ -554,7 +554,7 @@
     if(!ok) throw new Error(label+' must be exactly '+w+'×'+h+' pixels. Your file is '+actual+'.');
   }
   async function uploadAsset(path,file){
-    const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:true,cacheControl:'3600'});
+    const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:false,cacheControl:'3600'});
     if(error) throw error;
     const {data}=sb.storage.from('hitta-cosmetics').getPublicUrl(path);
     return data.publicUrl;
