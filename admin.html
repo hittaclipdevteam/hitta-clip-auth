@@ -54,6 +54,24 @@
     .bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#0d1119 }
     .bulk-actions button { font-size:13px }
     button.danger { background:#55272d; color:#ffe7e7; border:1px solid #88434b }
+
+    .cosmetic-manager{margin-top:30px;padding-top:24px;border-top:1px solid var(--line)}
+    .cosmetic-form{background:#10151e;border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}
+    .cosmetic-form h3{margin:0 0 12px}
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+    .field{display:grid;gap:6px;color:var(--muted);font-size:12px}
+    .field input,.field select,.field textarea{width:100%;background:#0d1119;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit}
+    .field textarea{min-height:70px;resize:vertical}
+    .dimension{font-size:11px;color:#9aa5b5}
+    .upload-help{font-size:12px;color:#9aa5b5;margin-top:4px}
+    .cosmetic-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .cosmetic-card{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .cosmetic-thumb{width:62px;height:62px;object-fit:contain;background:#0b0f16;border:1px solid var(--line);border-radius:8px;padding:4px}
+    .cosmetic-ident{display:flex;align-items:center;gap:12px;min-width:0}
+    .rarity-chip{border:1px solid currentColor;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase}
+    .file-input{font-size:13px}
+    @media(max-width:560px){.form-grid{grid-template-columns:1fr}.cosmetic-form{padding:12px}}
+
     .empty { color:var(--muted); text-align:center; padding:28px 10px; border:1px dashed var(--line); border-radius:12px }
     footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
     @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
@@ -123,6 +141,40 @@
           </div>
           <div id="pickaxeResults" class="catalog-grid"></div>
         </section>
+      </section>
+
+      <section class="cosmetic-manager">
+        <div class="topline"><div><h2>Cosmetic Manager</h2><div class="sub">Upload new cosmetics directly to the live game catalog. No game republish required.</div></div></div>
+        <div class="notice">Images must be transparent PNG files with the exact dimensions shown. Skin files: head 46×46, hand 20×20, foot 28×14. Pickaxe: 90×60.</div>
+        <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button></div>
+        <form id="skinUploadForm" class="cosmetic-form hidden">
+          <h3>Add a skin</h3>
+          <div class="form-grid">
+            <label class="field">Skin name<input id="skinName" maxlength="60" required placeholder="e.g. Shadow Striker"></label>
+            <label class="field">Rarity<select id="skinRarity"></select></label>
+            <label class="field">Price in coins<input id="skinPrice" type="number" min="0" max="1000000" step="1" required></label>
+            <label class="field">Description<textarea id="skinDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
+            <label class="field">Head PNG — 46 × 46 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 46 × 46 pixels</span></label>
+            <label class="field">Hand PNG — 20 × 20 px<input id="skinHandFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 20 × 20 pixels</span></label>
+            <label class="field">Foot PNG — 28 × 14 px<input id="skinFootFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 28 × 14 pixels</span></label>
+          </div>
+          <div class="upload-help">The ID and filenames are generated automatically from the skin name.</div>
+          <div class="cosmetic-actions"><button id="publishSkinBtn" type="submit">Upload and publish skin</button><button type="button" class="secondary" data-close-form="skinUploadForm">Cancel</button></div>
+          <div id="skinUploadStatus" class="status" aria-live="polite"></div>
+        </form>
+        <form id="pickaxeUploadForm" class="cosmetic-form hidden">
+          <h3>Add a pickaxe</h3>
+          <div class="form-grid">
+            <label class="field">Pickaxe name<input id="pickaxeName" maxlength="60" required placeholder="e.g. Shadow Pickaxe"></label>
+            <label class="field">Rarity<select id="pickaxeRarity"></select></label>
+            <label class="field">Price in coins<input id="pickaxePrice" type="number" min="0" max="1000000" step="1" required></label>
+            <label class="field">Description<textarea id="pickaxeDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
+            <label class="field">Pickaxe PNG — 90 × 60 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 90 × 60 pixels; pointing right, grip at left-middle</span></label>
+          </div>
+          <div class="upload-help">The ID and filename are generated automatically from the pickaxe name.</div>
+          <div class="cosmetic-actions"><button id="publishPickaxeBtn" type="submit">Upload and publish pickaxe</button><button type="button" class="secondary" data-close-form="pickaxeUploadForm">Cancel</button></div>
+          <div id="pickaxeUploadStatus" class="status" aria-live="polite"></div>
+        </form>
       </section>
 
       <div class="notice">
@@ -407,8 +459,9 @@
     identity.append(name, detail);
 
     const rarity = document.createElement('span');
-    rarity.className = 'role';
+    rarity.className = 'rarity-chip';
     rarity.textContent = safeText(item.rarity);
+    rarity.style.color = RARITY_COLORS[item.rarity] || '#9aa5b5';
 
     head.append(identity, rarity);
 
@@ -418,9 +471,112 @@
     price.className = 'stat';
     price.textContent = `Price: ${safeText(item.price)} coins`;
     stats.append(price);
-
-    card.append(head, stats);
+    if (item.description) { const desc=document.createElement('span'); desc.className='stat'; desc.textContent=item.description; stats.append(desc); }
+    const actions=document.createElement('div'); actions.className='cosmetic-actions';
+    const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent='Edit details';
+    edit.addEventListener('click',()=>editCosmetic(item));
+    const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=item.active === false ? 'Enable' : 'Disable';
+    toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
+    const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent='Permanently remove + refund';
+    remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
+    actions.append(edit,toggle,remove);
+    card.append(head, stats, actions);
     return card;
+  }
+
+  const RARITY_COLORS = { common:'#9ca3af', uncommon:'#22c55e', rare:'#3b82f6', epic:'#a855f7', legendary:'#f97316', mythic:'#facc15', exotic:'#14b8a6', ancient:'#a16207', relic:'#ef4444', shadow:'#111827', divine:'#f8fafc', celestial:'#ec4899', prismatic:'#ff4fd8' };
+  const RARITY_DEFAULT_PRICES = { common:300, uncommon:600, rare:900, epic:1400, legendary:2000, mythic:2700, exotic:3300, ancient:4000, relic:4800, shadow:5600, divine:6500, celestial:7500, prismatic:9000 };
+  const RARITIES = Object.keys(RARITY_DEFAULT_PRICES);
+  function setupRaritySelect(selectId, priceId) {
+    const select=$(selectId); select.replaceChildren();
+    RARITIES.forEach(r=>{const opt=document.createElement('option');opt.value=r;opt.textContent=r[0].toUpperCase()+r.slice(1);select.append(opt);});
+    $(priceId).value=RARITY_DEFAULT_PRICES[select.value];
+    select.addEventListener('change',()=>{$(priceId).value=RARITY_DEFAULT_PRICES[select.value];});
+    $(priceId).dataset.manual='false';
+    $(priceId).addEventListener('input',()=>{$(priceId).dataset.manual='true';});
+  }
+  setupRaritySelect('skinRarity','skinPrice');
+  setupRaritySelect('pickaxeRarity','pickaxePrice');
+  $('showSkinForm').addEventListener('click',()=>{hide('pickaxeUploadForm');show('skinUploadForm');});
+  $('showPickaxeForm').addEventListener('click',()=>{hide('skinUploadForm');show('pickaxeUploadForm');});
+  document.querySelectorAll('[data-close-form]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.closeForm)));
+  function slugify(value){return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,42);}
+  async function validatePng(file,w,h,label){
+    if(!file || file.type!=='image/png') throw new Error(label+' must be a PNG file.');
+    const bitmap=await createImageBitmap(file);
+    const ok=bitmap.width===w && bitmap.height===h; const actual=bitmap.width+'×'+bitmap.height; bitmap.close?.();
+    if(!ok) throw new Error(label+' must be exactly '+w+'×'+h+' pixels. Your file is '+actual+'.');
+  }
+  async function uploadAsset(path,file){
+    const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:true,cacheControl:'3600'});
+    if(error) throw error;
+    const {data}=sb.storage.from('hitta-cosmetics').getPublicUrl(path);
+    return data.publicUrl;
+  }
+  async function ensureUniqueId(id){
+    const {data,error}=await sb.from('cosmetic_catalog').select('id').eq('id',id).maybeSingle();
+    if(error) throw error; if(data) throw new Error('That cosmetic ID already exists. Change the name to make it unique.');
+  }
+  async function publishCosmetic(type){
+    const skin=type==='skin'; const prefix=skin?'skin':'pickaxe';
+    const name=$(prefix+'Name').value.trim(); const rarity=$(prefix+'Rarity').value; const price=Number($(prefix+'Price').value);
+    const description=$(prefix+'Description').value.trim(); const btn=$(skin?'publishSkinBtn':'publishPickaxeBtn'); const statusId=skin?'skinUploadStatus':'pickaxeUploadStatus';
+    if(!name) throw new Error('Enter a cosmetic name.');
+    if(!Number.isSafeInteger(price)||price<0||price>1000000) throw new Error('Enter a whole-number price between 0 and 1,000,000.');
+    const id=slugify(name); if(!id) throw new Error('The name needs at least one letter or number.');
+    btn.disabled=true; status(statusId,'Checking image dimensions…');
+    try{
+      await ensureUniqueId(id);
+      const files=skin?{head:$('skinHeadFile').files[0],hand:$('skinHandFile').files[0],foot:$('skinFootFile').files[0]}:{image:$('pickaxeFile').files[0]};
+      if(skin){await validatePng(files.head,46,46,'Head');await validatePng(files.hand,20,20,'Hand');await validatePng(files.foot,28,14,'Foot');}
+      else await validatePng(files.image,90,60,'Pickaxe');
+      status(statusId,'Uploading image files…');
+      const assets={};
+      if(skin){for(const part of ['head','hand','foot']) assets[part]=await uploadAsset('skins/'+id+'/'+id+'_'+part+'.png',files[part]);}
+      else assets.image=await uploadAsset('pickaxes/'+id+'/'+id+'.png',files.image);
+      status(statusId,'Saving cosmetic to the live catalog…');
+      const visual=skin?{col:'#7c9cff'}:{handle:'#5b6475',head:'#dbeafe',shine:'#ffffff'};
+      const {error}=await sb.from('cosmetic_catalog').insert({id,type,name,rarity,price,visual,assets,description,featured:false,active:true});
+      if(error) throw error;
+      status(statusId,'Published! The cosmetic is now in the live catalog.');
+      $(skin?'skinUploadForm':'pickaxeUploadForm').reset();
+      $(skin?'skinPrice':'pickaxePrice').value=RARITY_DEFAULT_PRICES[$(skin?'skinRarity':'pickaxeRarity').value];
+      await loadCatalog();
+    }catch(error){status(statusId,error.message||'Could not publish cosmetic.',true);}
+    finally{btn.disabled=false;}
+  }
+  $('skinUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('skin');});
+  $('pickaxeUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('pickaxe');});
+  async function editCosmetic(item){
+    const nextName=prompt('Cosmetic name:',item.name); if(nextName===null) return;
+    const nextRarity=prompt('Rarity (common, uncommon, rare, epic, legendary, mythic, exotic, ancient, relic, shadow, divine, celestial, prismatic):',item.rarity); if(nextRarity===null) return;
+    const rarity=nextRarity.trim().toLowerCase(); if(!RARITIES.includes(rarity)){status('catalogStatus','That rarity is not valid.',true);return;}
+    const nextPrice=prompt('Price in coins:',String(item.price)); if(nextPrice===null) return;
+    const price=Number(nextPrice); if(!Number.isSafeInteger(price)||price<0||price>1000000){status('catalogStatus','Enter a whole-number price between 0 and 1,000,000.',true);return;}
+    const description=prompt('Description (optional):',item.description||''); if(description===null) return;
+    try{const {error}=await sb.from('cosmetic_catalog').update({name:nextName.trim(),rarity,price,description:description.trim()}).eq('id',item.id);if(error)throw error;await loadCatalog();status('catalogStatus',item.name+' updated.');}
+    catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
+  }
+
+  async function permanentlyRemoveCosmetic(item){
+    const warning = `PERMANENT REMOVAL\n\n${item.name} will be removed from the shop and every player's inventory.\n\nPlayers who purchased it will receive a coin refund. Players who received it for free will receive no coin refund. Each affected player will receive an in-game account notification.\n\nFor purchases made before refund tracking was installed, the current catalog price is used as the best available estimate.\n\nThis cannot be undone. Continue?`;
+    if(!confirm(warning)) return;
+    const typed=prompt(`Type REMOVE to permanently remove ${item.name} and process refunds:`);
+    if(typed!=='REMOVE') { status('catalogStatus','Removal cancelled.'); return; }
+    try{
+      status('catalogStatus','Removing cosmetic and processing refunds…');
+      const {data,error}=await sb.rpc('hitta_admin_remove_cosmetic',{p_id:item.id});
+      if(error) throw error;
+      await loadCatalog();
+      const owners=Number(data?.owners_refunded||0), total=Number(data?.total_refunded||0);
+      status('catalogStatus',`${item.name} permanently removed. ${owners} player(s) refunded ${total.toLocaleString()} coins in total.`);
+    }catch(error){status('catalogStatus',error.message||'Could not remove cosmetic or process refunds.',true);}
+  }
+
+  async function setCosmeticActive(item,active){
+    if(!confirm((active?'Enable':'Disable')+' '+item.name+'? Disabling hides it from the shop but does not remove it from player inventories.')) return;
+    try{const {error}=await sb.from('cosmetic_catalog').update({active}).eq('id',item.id);if(error)throw error;await loadCatalog();status('catalogStatus',item.name+(active?' enabled.':' disabled; existing owners keep it.'));}
+    catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
   async function loadCatalog() {
@@ -433,8 +589,7 @@
     try {
       const { data, error } = await sb
         .from('cosmetic_catalog')
-        .select('id,type,name,rarity,price')
-        .eq('active', true)
+        .select('id,type,name,rarity,price,description,assets,active')
         .order('price', { ascending: true })
         .order('name', { ascending: true });
 
@@ -464,7 +619,7 @@
         $('pickaxeResults').innerHTML = '<div class="empty">No active pickaxes found.</div>';
       }
 
-      status('catalogStatus', `${items.length} active cosmetics in the shared catalog.`);
+      status('catalogStatus', `${items.length} cosmetics in the shared catalog, including disabled items.`);
     } catch (error) {
       status('catalogStatus', error.message || 'Could not load the cosmetic catalog.', true);
     } finally {
