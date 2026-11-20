@@ -249,6 +249,7 @@
   function renderPlayer(player) {
     const card = document.createElement('article');
     card.className = 'player';
+    if (item.__virtualStarter) card.style.borderColor = '#4b6b9b';
 
     const head = document.createElement('div');
     head.className = 'player-head';
@@ -496,7 +497,7 @@
 
     const detail = document.createElement('div');
     detail.className = 'muted';
-    detail.textContent = `${safeText(item.type)} · ${safeText(item.id)}`;
+    detail.textContent = `${safeText(item.type)} · ${safeText(item.id)}${item.__virtualStarter ? ' · built-in game cosmetic (catalog entry deleted)' : ''}`;
     identity.append(name, detail);
 
     const rarity = document.createElement('span');
@@ -514,11 +515,13 @@
     stats.append(price);
     if (item.description) { const desc=document.createElement('span'); desc.className='stat'; desc.textContent=item.description; stats.append(desc); }
     const actions=document.createElement('div'); actions.className='cosmetic-actions';
-    const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent='Edit details';
-    edit.addEventListener('click',()=>editCosmetic(item));
-    const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=item.active === false ? 'Enable' : 'Disable';
-    toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
     const protectedStarter = isStarterCosmetic(item);
+    const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent=protectedStarter?'Starter cosmetic — protected':'Edit details';
+    edit.disabled=protectedStarter;
+    if(!protectedStarter) edit.addEventListener('click',()=>editCosmetic(item));
+    const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Disable');
+    toggle.disabled=protectedStarter;
+    if(!protectedStarter) toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
     const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent=protectedStarter?'Starter cosmetic — protected':'Permanently remove + refund';
     remove.disabled=protectedStarter;
     if(!protectedStarter) remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
@@ -600,7 +603,7 @@
     catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
-  function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='default pickaxe'||name==='starter pickaxe';}
+  function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id==='skin1'||id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='classic pick'||name==='default pickaxe'||name==='starter pickaxe';}
 
   async function permanentlyRemoveCosmetic(item){
     if(isStarterCosmetic(item)){status('catalogStatus','Starter skin and Default pickaxe are protected and cannot be permanently removed.',true);return;}
@@ -624,7 +627,9 @@
     catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
+  let catalogLoadVersion = 0;
   async function loadCatalog() {
+    const thisLoad = ++catalogLoadVersion;
     const button = $('refreshCatalogBtn');
     if (button) button.disabled = true;
     $('skinResults').replaceChildren();
@@ -640,18 +645,25 @@
 
       if (error) throw error;
 
-      const items = data || [];
+      if (thisLoad !== catalogLoadVersion) return;
+      // De-duplicate by type + ID in case overlapping refreshes or legacy rows return repeats.
+      const unique = new Map();
+      for (const item of (data || [])) unique.set(String(item.type)+'::'+String(item.id), item);
+      const items = [...unique.values()];
       catalogItems = items;
       populateForceShopSelect();
       const skins = items.filter(item => item.type === 'skin');
       const pickaxes = items.filter(item => item.type === 'pickaxe');
+      // skin1 is the built-in Starter Skin. Show it in the admin catalog even if its DB row was deleted.
+      const hasStarterSkin = skins.some(item => String(item.id).toLowerCase() === 'skin1' || isStarterCosmetic(item));
+      const displaySkins = hasStarterSkin ? skins : [{id:'skin1',type:'skin',name:'Starter Skin',rarity:'common',price:0,active:true,__virtualStarter:true} , ...skins];
 
-      $('skinCount').textContent = `${skins.length} items`;
+      $('skinCount').textContent = `${displaySkins.length} items`; 
       $('pickaxeCount').textContent = `${pickaxes.length} items`;
 
-      if (skins.length) {
+      if (displaySkins.length) {
         const fragment = document.createDocumentFragment();
-        skins.forEach(item => fragment.append(renderCosmetic(item)));
+        displaySkins.forEach(item => fragment.append(renderCosmetic(item)));
         $('skinResults').append(fragment);
       } else {
         $('skinResults').innerHTML = '<div class="empty">No active skins found.</div>';
