@@ -532,10 +532,13 @@
     const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent=protectedStarter?'Starter cosmetic — protected':'Edit details';
     edit.disabled=protectedStarter;
     if(!protectedStarter) edit.addEventListener('click',()=>editCosmetic(item));
-    const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Disable');
+    const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Temporarily disable');
     toggle.disabled=protectedStarter;
     if(!protectedStarter) toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
-    actions.append(edit,toggle);
+    const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent=protectedStarter?'Starter cosmetic — protected':'Delete + Refund';
+    remove.disabled=protectedStarter;
+    if(!protectedStarter) remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
+    actions.append(edit,toggle,remove);
     card.append(head, stats, actions);
     return card;
   }
@@ -724,6 +727,21 @@
 
   function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id==='skin1'||id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='classic pick'||name==='default pickaxe'||name==='starter pickaxe';}
 
+  async function permanentlyRemoveCosmetic(item){
+    if(isStarterCosmetic(item)){status('catalogStatus','Starter skin and Default pickaxe are protected and cannot be permanently removed.',true);return;}
+    const warning = `PERMANENT DELETION + REFUND\n\n${item.name} will be permanently removed from the cosmetic catalog and every player's inventory. Players who purchased it will receive a coin refund. Players who received it for free will receive no coin refund. Each affected player will receive an in-game account notification.\n\nFor purchases made before refund tracking was installed, the current catalog price is used as the best available estimate.\n\nThis cannot be undone. Continue?`;
+    if(!(await immersiveConfirm(warning))) return;
+    const typed=await immersivePrompt(`Type REMOVE to permanently delete ${item.name} and process refunds:`);
+    if(typed!=='REMOVE') { status('catalogStatus','Deletion cancelled.'); return; }
+    try{
+      status('catalogStatus','Permanently deleting cosmetic and processing refunds…');
+      const {data,error}=await sb.rpc('hitta_admin_remove_cosmetic',{p_id:item.id});
+      if(error) throw error;
+      await loadCatalog();
+      const owners=Number(data?.owners_refunded||0), total=Number(data?.total_refunded||0);
+      status('catalogStatus',`${item.name} permanently deleted. ${owners} player(s) refunded ${total.toLocaleString()} coins in total.`);
+    }catch(error){status('catalogStatus',error.message||'Could not delete cosmetic or process refunds.',true);}
+  }
 
   async function setCosmeticActive(item,active){
     const confirmMessage=(active?'Re-enable ':'Temporarily disable ')+item.name+'? '+(active?'It will become eligible for the Item Shop again.':'It will be removed from new Item Shop rotations only. The catalog record, existing ownership, locker entry, and equipped cosmetic are preserved.');
