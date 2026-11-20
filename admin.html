@@ -85,8 +85,20 @@
       <div id="searchStatus" class="status" aria-live="polite"></div>
       <div id="results" class="results"></div>
 
+      <section style="margin-top:30px">
+        <div class="topline">
+          <div>
+            <h2>Shared cosmetic catalog</h2>
+            <div class="sub">Cosmetics currently available to the game.</div>
+          </div>
+          <button id="refreshCatalogBtn" class="secondary" type="button">Refresh catalog</button>
+        </div>
+        <div id="catalogStatus" class="status" aria-live="polite">Loading catalog…</div>
+        <div id="catalogResults" class="results"></div>
+      </section>
+
       <div class="notice">
-        Account editing is temporarily disabled while the game's cloud-save system is being hardened. Searching is read-only. Do not use browser developer tools to call the editing function manually.
+        Account editing is temporarily disabled while the game's cloud-save system is being hardened. Searching and viewing the catalog are read-only. Do not use browser developer tools to call the editing function manually.
       </div>
     </section>
 
@@ -149,6 +161,74 @@
     return card;
   }
 
+  function renderCosmetic(item) {
+    const card = document.createElement('article');
+    card.className = 'player';
+
+    const head = document.createElement('div');
+    head.className = 'player-head';
+
+    const identity = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'username';
+    name.textContent = safeText(item.name);
+
+    const detail = document.createElement('div');
+    detail.className = 'muted';
+    detail.textContent = `${safeText(item.type)} · ${safeText(item.id)}`;
+    identity.append(name, detail);
+
+    const rarity = document.createElement('span');
+    rarity.className = 'role';
+    rarity.textContent = safeText(item.rarity);
+
+    head.append(identity, rarity);
+
+    const stats = document.createElement('div');
+    stats.className = 'stats';
+    const price = document.createElement('span');
+    price.className = 'stat';
+    price.textContent = `Price: ${safeText(item.price)} coins`;
+    stats.append(price);
+
+    card.append(head, stats);
+    return card;
+  }
+
+  async function loadCatalog() {
+    const button = $('refreshCatalogBtn');
+    if (button) button.disabled = true;
+    $('catalogResults').replaceChildren();
+    status('catalogStatus', 'Loading shared cosmetics…');
+
+    try {
+      const { data, error } = await sb
+        .from('cosmetic_catalog')
+        .select('id,type,name,rarity,price')
+        .eq('active', true)
+        .order('type', { ascending: true })
+        .order('price', { ascending: true });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        $('catalogResults').innerHTML = '<div class="empty">No active cosmetics found.</div>';
+      } else {
+        const fragment = document.createDocumentFragment();
+        data.forEach(item => fragment.append(renderCosmetic(item)));
+        $('catalogResults').append(fragment);
+      }
+
+      const skins = (data || []).filter(item => item.type === 'skin').length;
+      const pickaxes = (data || []).filter(item => item.type === 'pickaxe').length;
+      status('catalogStatus', `${data?.length || 0} active cosmetics · ${skins} skins · ${pickaxes} pickaxes`);
+    } catch (error) {
+      status('catalogStatus', error.message || 'Could not load the cosmetic catalog.', true);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
   async function enterAdmin(user) {
     const { data, error } = await sb
       .from('admin_users')
@@ -172,6 +252,7 @@
     $('signedInAs').textContent = user.email || user.id;
     $('roleBadge').textContent = data.role;
     status('searchStatus', 'You are signed in. Search for a player by username.');
+    await loadCatalog();
   }
 
   async function initialize() {
@@ -241,6 +322,7 @@
     show('loginPanel');
     status('loginStatus', 'You have signed out.');
   }
+  $('refreshCatalogBtn').addEventListener('click', loadCatalog);
   $('signOutBtn').addEventListener('click', signOut);
   $('deniedSignOut').addEventListener('click', signOut);
 
