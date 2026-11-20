@@ -210,10 +210,13 @@
             <label class="field">Announcement title<input id="broadcastTitle" maxlength="100" required placeholder="e.g. Update 1.2 — Patch Notes"></label>
             <label class="field">Coins to grant each account<input id="broadcastCoins" type="number" min="0" max="1000000" step="1" value="0" required><span class="dimension">Use 0 for no compensation. The amount is granted to every existing player profile.</span></label>
             <label class="field" style="grid-column:1/-1">Message / patch notes<textarea id="broadcastMessage" maxlength="4000" required placeholder="Write your announcement, patch notes, or compensation explanation..."></textarea></label>
+            <label class="field">Optional announcement image<input id="broadcastImage" type="file" accept="image/png,image/jpeg,image/webp"><span class="dimension">PNG, JPG, or WebP · max 4 MB</span></label>
           </div>
           <div class="cosmetic-actions"><button id="broadcastSendBtn" type="submit">Send to all players</button></div>
           <div id="broadcastStatus" class="status" aria-live="polite"></div>
         </form>
+        <h3 style="margin:20px 0 8px">Previously sent announcements</h3>
+        <div id="announcementHistory" class="catalog-grid"><div class="empty">Loading announcements…</div></div>
       </section>
       <div class="notice">
         Administrative changes are applied directly through protected Supabase functions and recorded in the audit log. Double-check the selected player before applying a change.
@@ -515,8 +518,10 @@
     edit.addEventListener('click',()=>editCosmetic(item));
     const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=item.active === false ? 'Enable' : 'Disable';
     toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
-    const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent='Permanently remove + refund';
-    remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
+    const protectedStarter = isStarterCosmetic(item);
+    const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent=protectedStarter?'Starter cosmetic — protected':'Permanently remove + refund';
+    remove.disabled=protectedStarter;
+    if(!protectedStarter) remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
     actions.append(edit,toggle,remove);
     card.append(head, stats, actions);
     return card;
@@ -595,7 +600,10 @@
     catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
+  function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='default pickaxe'||name==='starter pickaxe';}
+
   async function permanentlyRemoveCosmetic(item){
+    if(isStarterCosmetic(item)){status('catalogStatus','Starter skin and Default pickaxe are protected and cannot be permanently removed.',true);return;}
     const warning = `PERMANENT REMOVAL\n\n${item.name} will be removed from the shop and every player's inventory.\n\nPlayers who purchased it will receive a coin refund. Players who received it for free will receive no coin refund. Each affected player will receive an in-game account notification.\n\nFor purchases made before refund tracking was installed, the current catalog price is used as the best available estimate.\n\nThis cannot be undone. Continue?`;
     if(!confirm(warning)) return;
     const typed=prompt(`Type REMOVE to permanently remove ${item.name} and process refunds:`);
@@ -708,6 +716,7 @@
     await loadCatalog();
     populateRefundUnlockCosmetics();
     await loadForcedShopItems();
+    await loadAnnouncementHistory();
   }
 
   let refundUnlockMatches = [];
@@ -739,22 +748,27 @@
     finally{button.disabled=false;}
   });
 
+  async function loadAnnouncementHistory(){
+    const host=$('announcementHistory'); if(!host)return; host.replaceChildren();
+    try{const {data,error}=await sb.rpc('hitta_admin_list_announcements');if(error)throw error;
+      if(!Array.isArray(data)||!data.length){host.innerHTML='<div class="empty">No announcements have been sent yet.</div>';return;}
+      data.forEach(a=>{const row=document.createElement('article');row.className='player';const title=document.createElement('div');title.className='username';title.textContent=a.title||'Announcement';const meta=document.createElement('div');meta.className='muted';meta.textContent=new Date(a.created_at).toLocaleString()+' · '+Number(a.recipient_count||0).toLocaleString()+' recipients';const del=document.createElement('button');del.className='danger';del.textContent='Remove announcement';del.addEventListener('click',async()=>{if(!confirm('Remove this announcement from every player notification inbox?'))return;del.disabled=true;try{const {error}=await sb.rpc('hitta_admin_delete_announcement',{p_announcement_id:a.id});if(error)throw error;await loadAnnouncementHistory();status('broadcastStatus','Announcement removed from player inboxes.');}catch(e){status('broadcastStatus',e.message,true);del.disabled=false;}});row.append(title,meta,del);host.append(row);});
+    }catch(e){host.innerHTML='<div class="empty">Could not load announcement history.</div>';status('broadcastStatus',e.message||'Could not load announcement history.',true);}
+  }
   $('broadcastForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const title=$('broadcastTitle').value.trim(), message=$('broadcastMessage').value.trim(), coins=Number($('broadcastCoins').value);
-    if(!title || !message){status('broadcastStatus','Enter both a title and a message.',true);return;}
+    event.preventDefault();const title=$('broadcastTitle').value.trim(),message=$('broadcastMessage').value.trim(),coins=Number($('broadcastCoins').value),file=$('broadcastImage').files[0];
+    if(!title||!message){status('broadcastStatus','Enter both a title and a message.',true);return;}
     if(!Number.isSafeInteger(coins)||coins<0||coins>1000000){status('broadcastStatus','Coin grant must be a whole number from 0 to 1,000,000.',true);return;}
-    const confirmation=`Send this announcement to every player?${coins>0?'\n\nThis will also grant '+coins.toLocaleString()+' coins to EACH account.':''}`;
-    if(!confirm(confirmation)) return;
-    $('broadcastSendBtn').disabled=true; status('broadcastStatus','Sending announcement and applying compensation…');
-    try{
-      const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:message,p_coin_grant:coins});
-      if(error) throw error;
-      status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each. Total coins granted: ${Number(data?.total_coins_granted||0).toLocaleString()}.`);
-      $('broadcastForm').reset(); $('broadcastCoins').value='0';
-    }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}
-    finally{$('broadcastSendBtn').disabled=false;}
+    if(file&&(file.size>4*1024*1024||!['image/png','image/jpeg','image/webp'].includes(file.type))){status('broadcastStatus','Use a PNG, JPG, or WebP image no larger than 4 MB.',true);return;}
+    if(!confirm(`Send this announcement to every player?${coins>0?'\n\nThis will also grant '+coins.toLocaleString()+' coins to EACH account.':''}`))return;
+    $('broadcastSendBtn').disabled=true;status('broadcastStatus','Sending announcement and applying compensation…');
+    try{let imageUrl=null;if(file){const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const path='announcements/'+crypto.randomUUID()+'.'+ext;const {error:upErr}=await sb.storage.from('hitta-cosmetics').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(upErr)throw upErr;imageUrl=sb.storage.from('hitta-cosmetics').getPublicUrl(path).data.publicUrl;}
+      const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:message,p_coin_grant:coins,p_image_url:imageUrl});if(error)throw error;
+      status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each.`);$('broadcastForm').reset();$('broadcastCoins').value='0';await loadAnnouncementHistory();
+    }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}finally{$('broadcastSendBtn').disabled=false;}
   });
+  loadAnnouncementHistory();
+
 
   async function initialize() {
     status('loginStatus', 'Checking sign-in…');
