@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HITTA CLIP — Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0d12; --panel:#141821; --line:#293140; --muted:#9aa5b5; --text:#f4f6fa; --accent:#7c9cff; --danger:#ff7373; }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at top,#172033 0,#0b0d12 55%); color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+    .wrap { width:min(1100px,calc(100% - 32px)); margin:48px auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:26px; }
+    .brand { font-weight:900; letter-spacing:.12em; font-size:20px; }
+    .brand span { color:var(--accent) }
+    .sub { color:var(--muted); font-size:13px; margin-top:3px }
+    .panel { background:rgba(20,24,33,.96); border:1px solid var(--line); border-radius:16px; padding:24px; box-shadow:0 18px 60px #0005; }
+    h1 { margin:0 0 8px; font-size:25px }
+    h2 { margin:0 0 14px; font-size:18px }
+    p { color:var(--muted) }
+    button,input { font:inherit }
+    button { cursor:pointer; border:0; border-radius:9px; padding:11px 16px; font-weight:700; background:var(--accent); color:#09101f; }
+    button.secondary { background:#252d3b; color:var(--text); border:1px solid #394456; }
+    button:disabled { opacity:.5; cursor:not-allowed }
+    input { width:100%; background:#0d1119; border:1px solid #394456; border-radius:9px; color:var(--text); padding:12px 13px; outline:none; }
+    input:focus { border-color:var(--accent) }
+    .row { display:flex; gap:10px; align-items:center }
+    .row input { flex:1; min-width:0 }
+    .hidden { display:none !important }
+    .status { margin-top:14px; min-height:22px; color:var(--muted); font-size:13px; white-space:pre-wrap }
+    .error { color:var(--danger) }
+    .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:20px }
+    .role { display:inline-flex; border:1px solid #4561a0; background:#1b2948; color:#b9caff; border-radius:99px; padding:4px 10px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em }
+    .results { margin-top:18px; display:grid; gap:10px }
+    .player { border:1px solid var(--line); border-radius:12px; padding:15px; background:#10151e; }
+    .player-head { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap }
+    .username { font-weight:800; font-size:16px; overflow-wrap:anywhere }
+    .muted { color:var(--muted); font-size:12px; overflow-wrap:anywhere }
+    .stats { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
+    .stat { background:#1b2230; border:1px solid #303b4e; border-radius:8px; padding:6px 9px; font-size:12px }
+    .notice { border:1px solid #5a4a26; background:#292315; color:#f0d89d; padding:12px 14px; border-radius:10px; margin-top:18px; font-size:13px }
+    .empty { color:var(--muted); text-align:center; padding:28px 10px; border:1px dashed var(--line); border-radius:12px }
+    footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
+    @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <div class="brand">HITTA <span>CLIP</span></div>
+        <div class="sub">Private administration</div>
+      </div>
+      <button id="signOutBtn" class="secondary hidden">Sign out</button>
+    </header>
+
+    <section id="loginPanel" class="panel">
+      <h1>Admin sign in</h1>
+      <p>Sign in with a Google account that has been authorized by the HITTA CLIP owner.</p>
+      <button id="googleBtn">Continue with Google</button>
+      <div id="loginStatus" class="status" aria-live="polite"></div>
+    </section>
+
+    <section id="deniedPanel" class="panel hidden">
+      <h1>Access not authorized</h1>
+      <p>This Google account is signed in, but it does not have an administrator role for HITTA CLIP.</p>
+      <button id="deniedSignOut" class="secondary">Sign out</button>
+      <div id="deniedStatus" class="status"></div>
+    </section>
+
+    <section id="adminPanel" class="panel hidden">
+      <div class="topline">
+        <div>
+          <h1>Player management</h1>
+          <div id="signedInAs" class="sub"></div>
+        </div>
+        <span id="roleBadge" class="role">Admin</span>
+      </div>
+
+      <h2>Search player accounts</h2>
+      <form id="searchForm" class="row">
+        <input id="searchInput" type="search" maxlength="50" placeholder="Enter a player username…" autocomplete="off">
+        <button id="searchBtn" type="submit">Search</button>
+      </form>
+      <div id="searchStatus" class="status" aria-live="polite"></div>
+      <div id="results" class="results"></div>
+
+      <div class="notice">
+        Account editing is temporarily disabled while the game's cloud-save system is being hardened. Searching is read-only. Do not use browser developer tools to call the editing function manually.
+      </div>
+    </section>
+
+    <footer>HITTA CLIP Admin · Access is checked by Supabase, not just by this page.</footer>
+  </main>
+
+<script>
+(() => {
+  const SUPABASE_URL = 'https://jsvwlikgojpdpnwdphei.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_poJvxl5_FanNyGe2bA7J7g_-tK75X8F';
+  const REDIRECT_URL = 'https://hittaclipdevteam.github.io/hitta-clip-auth/admin.html';
+
+  const $ = (id) => document.getElementById(id);
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+  });
+
+  function show(id) { $(id).classList.remove('hidden'); }
+  function hide(id) { $(id).classList.add('hidden'); }
+  function status(id, message, isError = false) {
+    $(id).textContent = message || '';
+    $(id).classList.toggle('error', !!isError);
+  }
+  function safeText(value) {
+    return value == null ? '' : String(value);
+  }
+  function renderPlayer(player) {
+    const card = document.createElement('article');
+    card.className = 'player';
+
+    const head = document.createElement('div');
+    head.className = 'player-head';
+    const identity = document.createElement('div');
+    const username = document.createElement('div');
+    username.className = 'username';
+    username.textContent = safeText(player.username || 'Unnamed player');
+    const uid = document.createElement('div');
+    uid.className = 'muted';
+    uid.textContent = safeText(player.user_id);
+    identity.append(username, uid);
+    head.append(identity);
+
+    const stats = document.createElement('div');
+    stats.className = 'stats';
+    const progression = player.progression || {};
+    const addStat = (label, value) => {
+      const el = document.createElement('span');
+      el.className = 'stat';
+      el.textContent = label + ': ' + safeText(value);
+      stats.append(el);
+    };
+    addStat('Coins', player.coins);
+    addStat('Level', progression.level ?? 1);
+    addStat('XP', progression.xp ?? 0);
+    addStat('Prestige', progression.prestige ?? 0);
+    addStat('Skins', Array.isArray(player.owned?.skin) ? player.owned.skin.length : 0);
+    addStat('Pickaxes', Array.isArray(player.owned?.pickaxe) ? player.owned.pickaxe.length : 0);
+
+    card.append(head, stats);
+    return card;
+  }
+
+  async function enterAdmin(user) {
+    const { data, error } = await sb
+      .from('admin_users')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data || !['owner', 'admin'].includes(data.role)) {
+      hide('loginPanel');
+      hide('adminPanel');
+      show('deniedPanel');
+      show('signOutBtn');
+      return;
+    }
+
+    hide('loginPanel');
+    hide('deniedPanel');
+    show('adminPanel');
+    show('signOutBtn');
+    $('signedInAs').textContent = user.email || user.id;
+    $('roleBadge').textContent = data.role;
+    status('searchStatus', 'You are signed in. Search for a player by username.');
+  }
+
+  async function initialize() {
+    status('loginStatus', 'Checking sign-in…');
+    try {
+      const { data, error } = await sb.auth.getSession();
+      if (error) throw error;
+      if (!data.session) {
+        show('loginPanel');
+        hide('adminPanel');
+        hide('deniedPanel');
+        hide('signOutBtn');
+        status('loginStatus', 'Sign in with your authorized Google account.');
+        return;
+      }
+      await enterAdmin(data.session.user);
+    } catch (error) {
+      status('loginStatus', error.message || 'Could not verify your session.', true);
+    }
+  }
+
+  $('googleBtn').addEventListener('click', async () => {
+    status('loginStatus', 'Opening Google sign-in…');
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: REDIRECT_URL }
+    });
+    if (error) status('loginStatus', error.message, true);
+  });
+
+  $('searchForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const query = $('searchInput').value.trim();
+    $('searchBtn').disabled = true;
+    $('results').replaceChildren();
+    status('searchStatus', 'Searching…');
+    try {
+      const { data, error } = await sb.rpc('hitta_admin_search_players', {
+        p_search: query
+      });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        $('results').innerHTML = '<div class="empty">No matching players found.</div>';
+      } else {
+        const fragment = document.createDocumentFragment();
+        data.forEach(player => fragment.append(renderPlayer(player)));
+        $('results').append(fragment);
+      }
+      status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
+    } catch (error) {
+      status('searchStatus', error.message || 'Player search failed.', true);
+    } finally {
+      $('searchBtn').disabled = false;
+    }
+  });
+
+  async function signOut() {
+    const { error } = await sb.auth.signOut();
+    if (error) {
+      status('deniedStatus', error.message, true);
+      return;
+    }
+    $('results').replaceChildren();
+    hide('adminPanel');
+    hide('deniedPanel');
+    hide('signOutBtn');
+    show('loginPanel');
+    status('loginStatus', 'You have signed out.');
+  }
+  $('signOutBtn').addEventListener('click', signOut);
+  $('deniedSignOut').addEventListener('click', signOut);
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      setTimeout(() => enterAdmin(session.user).catch(error => {
+        status('loginStatus', error.message || 'Could not verify administrator access.', true);
+      }), 0);
+    }
+    if (event === 'SIGNED_OUT') {
+      hide('adminPanel');
+      hide('deniedPanel');
+      hide('signOutBtn');
+      show('loginPanel');
+    }
+  });
+
+  initialize();
+})();
+</script>
+</body>
+</html>
