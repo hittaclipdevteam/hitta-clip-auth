@@ -68,13 +68,7 @@
     .cosmetic-card{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
     .cosmetic-thumb{width:62px;height:62px;object-fit:contain;background:#0b0f16;border:1px solid var(--line);border-radius:8px;padding:4px}
     .cosmetic-ident{display:flex;align-items:center;gap:12px;min-width:0}
-    .rarity-chip{position:relative;isolation:isolate;border:1px solid currentColor;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap}
-    .rarity-chip.prismatic{color:transparent!important;border-color:transparent;background:linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030);background-size:300% 100%;background-clip:text;-webkit-background-clip:text;animation:prismaticText 3s linear infinite}
-    .rarity-chip.prismatic::before{content:"";position:absolute;z-index:-1;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030);background-size:300% 100%;animation:prismaticBorder 3s linear infinite;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor}
-    @keyframes prismaticText{to{background-position:300% 50%}}
-    @keyframes prismaticBorder{to{background-position:300% 50%}}
-    .cosmetic-edit-panel{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:#0d1119}
-    .cosmetic-edit-panel h4{margin:0 0 10px;font-size:14px}
+    .rarity-chip{border:1px solid currentColor;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase}
     .file-input{font-size:13px}
     @media(max-width:560px){.form-grid{grid-template-columns:1fr}.cosmetic-form{padding:12px}}
 
@@ -507,10 +501,9 @@
     identity.append(name, detail);
 
     const rarity = document.createElement('span');
-    const rarityKey = String(item.rarity || '').toLowerCase();
-    rarity.className = 'rarity-chip' + (rarityKey === 'prismatic' ? ' prismatic' : '');
+    rarity.className = 'rarity-chip';
     rarity.textContent = safeText(item.rarity);
-    if (rarityKey !== 'prismatic') rarity.style.color = RARITY_COLORS[rarityKey] || '#9aa5b5';
+    rarity.style.color = RARITY_COLORS[item.rarity] || '#9aa5b5';
 
     head.append(identity, rarity);
 
@@ -525,7 +518,7 @@
     const protectedStarter = isStarterCosmetic(item);
     const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent=protectedStarter?'Starter cosmetic — protected':'Edit details';
     edit.disabled=protectedStarter;
-    if(!protectedStarter) edit.addEventListener('click',()=>toggleCosmeticEditor(card,item,edit));
+    if(!protectedStarter) edit.addEventListener('click',()=>editCosmetic(item));
     const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Disable');
     toggle.disabled=protectedStarter;
     if(!protectedStarter) toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
@@ -561,36 +554,10 @@
     if(!ok) throw new Error(label+' must be exactly '+w+'×'+h+' pixels. Your file is '+actual+'.');
   }
   async function uploadAsset(path,file){
-    const bucket = sb.storage.from('hitta-cosmetics');
-    const {error}=await bucket.upload(path,file,{contentType:'image/png',upsert:false,cacheControl:'3600'});
-    // An earlier interrupted attempt may already have uploaded this exact asset path.
-    // Reuse that existing object rather than failing the catalog publish.
-    if(error && !(String(error.statusCode)==='409' || /already exists|duplicate/i.test(error.message || ''))) throw error;
-    const {data}=bucket.getPublicUrl(path);
-    return data.publicUrl;
-  }
-  function storagePathFromPublicUrl(value){
-    if(!value) return null;
-    try{
-      const url=new URL(value);
-      const marker='/storage/v1/object/public/hitta-cosmetics/';
-      const index=url.pathname.indexOf(marker);
-      return index>=0 ? decodeURIComponent(url.pathname.slice(index+marker.length)) : null;
-    }catch{return null;}
-  }
-  async function removeCosmeticStorageAssets(assets){
-    const paths=Object.values(assets||{}).map(storagePathFromPublicUrl).filter(Boolean);
-    if(!paths.length) return {removed:0};
-    const {data,error}=await sb.storage.from('hitta-cosmetics').remove(paths);
+    const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:false,cacheControl:'3600'});
     if(error) throw error;
-    return {removed:paths.length,data};
-  }
-  async function uploadReplacementAsset(path,file){
-    // Use a new immutable object path so replacing an asset does not require Storage upsert/UPDATE.
-    const dot=path.lastIndexOf('.');
-    const versioned=(dot>=0?path.slice(0,dot):path)+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+(dot>=0?path.slice(dot):'');
-    const url=await uploadAsset(versioned,file);
-    return {url,path:versioned};
+    const {data}=sb.storage.from('hitta-cosmetics').getPublicUrl(path);
+    return data.publicUrl;
   }
   async function ensureUniqueId(id){
     const {data,error}=await sb.from('cosmetic_catalog').select('id').eq('id',id).maybeSingle();
@@ -598,7 +565,7 @@
   }
   async function publishCosmetic(type){
     const skin=type==='skin'; const prefix=skin?'skin':'pickaxe';
-    const name=$(prefix+'Name').value.trim(); const rarityKey=$(prefix+'Rarity').value; const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1); const price=Number($(prefix+'Price').value);
+    const name=$(prefix+'Name').value.trim(); const rarity=$(prefix+'Rarity').value; const price=Number($(prefix+'Price').value);
     const description=$(prefix+'Description').value.trim(); const btn=$(skin?'publishSkinBtn':'publishPickaxeBtn'); const statusId=skin?'skinUploadStatus':'pickaxeUploadStatus';
     if(!name) throw new Error('Enter a cosmetic name.');
     if(!Number.isSafeInteger(price)||price<0||price>1000000) throw new Error('Enter a whole-number price between 0 and 1,000,000.');
@@ -626,78 +593,27 @@
   }
   $('skinUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('skin');});
   $('pickaxeUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('pickaxe');});
-  function toggleCosmeticEditor(card,item,button){
-    const existing=card.querySelector('.cosmetic-edit-panel');
-    if(existing){existing.remove();button.textContent='Edit details';return;}
-    document.querySelectorAll('.cosmetic-edit-panel').forEach(panel=>panel.remove());
-    document.querySelectorAll('.cosmetic-actions button').forEach(b=>{if(b.textContent==='Close editor')b.textContent='Edit details';});
-    const panel=document.createElement('form');
-    panel.className='cosmetic-edit-panel';
-    const heading=document.createElement('h4');heading.textContent='Edit cosmetic';panel.append(heading);
-    const grid=document.createElement('div');grid.className='form-grid';
-    const nameLabel=document.createElement('label');nameLabel.className='field';nameLabel.textContent='Cosmetic name';
-    const nameInput=document.createElement('input');nameInput.type='text';nameInput.maxLength=60;nameInput.required=true;nameInput.value=item.name;nameLabel.append(nameInput);
-    const rarityLabel=document.createElement('label');rarityLabel.className='field';rarityLabel.textContent='Rarity';
-    const raritySelect=document.createElement('select');
-    RARITIES.forEach(key=>raritySelect.add(new Option(key[0].toUpperCase()+key.slice(1),key)));
-    raritySelect.value=String(item.rarity||'common').toLowerCase();rarityLabel.append(raritySelect);
-    const priceLabel=document.createElement('label');priceLabel.className='field';priceLabel.textContent='Price in coins';
-    const priceInput=document.createElement('input');priceInput.type='number';priceInput.min='0';priceInput.max='1000000';priceInput.step='1';priceInput.required=true;priceInput.value=String(item.price);priceLabel.append(priceInput);
-    grid.append(nameLabel,rarityLabel,priceLabel);
-    const replacementFiles={};
-    const addFileField=(key,label,accept='image/png')=>{
-      const wrap=document.createElement('label');wrap.className='field';wrap.textContent=label+' (optional replacement)';
-      const input=document.createElement('input');input.type='file';input.accept=accept;input.className='file-input';wrap.append(input);grid.append(wrap);replacementFiles[key]=input;
-    };
-    if(item.type==='skin'){
-      addFileField('head','Head PNG — 46 × 46 px');
-      addFileField('hand','Hand PNG — 20 × 20 px');
-      addFileField('foot','Foot PNG — 28 × 14 px');
-    }else if(item.type==='pickaxe') addFileField('image','Pickaxe PNG — 90 × 60 px');
-    panel.append(grid);
-    const actions=document.createElement('div');actions.className='cosmetic-actions';
-    const save=document.createElement('button');save.type='submit';save.textContent='Save changes';
-    const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Cancel';
-    const message=document.createElement('div');message.className='status';message.setAttribute('aria-live','polite');
-    actions.append(save,cancel);panel.append(actions,message);card.append(panel);
-    button.textContent='Close editor';
-    cancel.addEventListener('click',()=>{panel.remove();button.textContent='Edit details';});
-    raritySelect.addEventListener('change',()=>{priceInput.value=RARITY_DEFAULT_PRICES[raritySelect.value];});
-    panel.addEventListener('submit',async event=>{
-      event.preventDefault();
-      const nextName=nameInput.value.trim(), rarityKey=raritySelect.value, price=Number(priceInput.value);
-      if(!nextName){statusText(message,'Enter a cosmetic name.',true);return;}
-      if(!Number.isSafeInteger(price)||price<0||price>1000000){statusText(message,'Enter a whole-number price between 0 and 1,000,000.',true);return;}
-      save.disabled=true;cancel.disabled=true;statusText(message,'Saving changes…');
-      try{
-        const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1);
-        const nextAssets={...(item.assets||{})};
-        const oldAssetsToRemove=[];
-        const dimensions=item.type==='skin'?{head:[46,46],hand:[20,20],foot:[28,14]}:{image:[90,60]};
-        for(const [key,input] of Object.entries(replacementFiles)){
-          const file=input.files[0];
-          if(!file) continue;
-          const [w,h]=dimensions[key];
-          await validatePng(file,w,h,key[0].toUpperCase()+key.slice(1));
-          const oldUrl=nextAssets[key];
-          const basePath=(item.type==='skin'?'skins/':'pickaxes/')+item.id+'/'+item.id+'_'+key+'.png';
-          const uploaded=await uploadReplacementAsset(basePath,file);
-          nextAssets[key]=uploaded.url;
-          if(oldUrl) oldAssetsToRemove.push(oldUrl);
-        }
-        const {error}=await sb.from('cosmetic_catalog').update({name:nextName,rarity,price,assets:nextAssets}).eq('id',item.id);
-        if(error)throw error;
-        let cleanupWarning='';
-        if(oldAssetsToRemove.length){
-          try{await removeCosmeticStorageAssets(Object.fromEntries(oldAssetsToRemove.map((url,i)=>['old'+i,url])));}
-          catch(cleanupError){cleanupWarning=' Details were saved, but old image files could not be removed from Storage: '+(cleanupError.message||'Storage delete permission denied.');}
-        }
-        await loadCatalog();status('catalogStatus',nextName+' updated.'+cleanupWarning,!!cleanupWarning);
-      }catch(error){statusText(message,error.message||'Could not update cosmetic.',true);save.disabled=false;cancel.disabled=false;}
-    });
+  async function editCosmetic(item){
+    const nextName=prompt('Cosmetic name:',item.name); if(nextName===null) return;
+    const nextRarity=prompt('Rarity (common, uncommon, rare, epic, legendary, mythic, exotic, ancient, relic, shadow, divine, celestial, prismatic):',item.rarity); if(nextRarity===null) return;
+    const rarity=nextRarity.trim().toLowerCase(); if(!RARITIES.includes(rarity)){status('catalogStatus','That rarity is not valid.',true);return;}
+    const nextPrice=prompt('Price in coins:',String(item.price)); if(nextPrice===null) return;
+    const price=Number(nextPrice); if(!Number.isSafeInteger(price)||price<0||price>1000000){status('catalogStatus','Enter a whole-number price between 0 and 1,000,000.',true);return;}
+    try{const {error}=await sb.from('cosmetic_catalog').update({name:nextName.trim(),rarity,price}).eq('id',item.id);if(error)throw error;await loadCatalog();status('catalogStatus',item.name+' updated.');}
+    catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
   function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id==='skin1'||id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='classic pick'||name==='default pickaxe'||name==='starter pickaxe';}
+
+  async function listCosmeticStorageFiles(item){
+    // Uploaded assets are stored together in a folder named after the cosmetic ID.
+    const folder=(item.type==='skin'?'skins/':'pickaxes/')+item.id;
+    const {data,error}=await sb.storage.from('hitta-cosmetics').list(folder,{limit:100});
+    if(error) throw new Error('Could not inspect Storage folder "'+folder+'": '+error.message);
+    return (data||[])
+      .filter(file=>file.name && /\.png$/i.test(file.name))
+      .map(file=>folder+'/'+file.name);
+  }
 
   async function permanentlyRemoveCosmetic(item){
     if(isStarterCosmetic(item)){status('catalogStatus','Starter skin and Default pickaxe are protected and cannot be permanently removed.',true);return;}
@@ -706,20 +622,25 @@
     const typed=prompt(`Type REMOVE to permanently remove ${item.name} and process refunds:`);
     if(typed!=='REMOVE') { status('catalogStatus','Removal cancelled.'); return; }
     try{
+      status('catalogStatus','Checking cosmetic image files…');
+      // Capture the exact PNG object paths before the RPC removes the catalog row.
+      const storagePaths=await listCosmeticStorageFiles(item);
       status('catalogStatus','Removing cosmetic and processing refunds…');
       const {data,error}=await sb.rpc('hitta_admin_remove_cosmetic',{p_id:item.id});
       if(error) throw error;
-      let storageMessage='';
-      try{
-        const cleanup=await removeCosmeticStorageAssets(item.assets||{});
-        storageMessage=` ${cleanup.removed} Storage file(s) deleted.`;
-      }catch(storageError){
-        storageMessage=' WARNING: the catalog entry and refunds were processed, but Storage cleanup failed: '+(storageError.message||'delete permission denied.');
+      let storageMessage='No PNG files were found in its Storage folder.';
+      if(storagePaths.length){
+        status('catalogStatus','Removing '+storagePaths.length+' image file(s) from Storage…');
+        const {data:removed,error:removeError}=await sb.storage.from('hitta-cosmetics').remove(storagePaths);
+        if(removeError) throw new Error('Cosmetic was removed from the catalog and refunds were processed, but Storage deletion failed: '+removeError.message);
+        const removedCount=Array.isArray(removed)?removed.length:0;
+        if(removedCount!==storagePaths.length) throw new Error('Cosmetic was removed from the catalog and refunds were processed, but Supabase confirmed only '+removedCount+' of '+storagePaths.length+' Storage file(s) deleted.');
+        storageMessage=removedCount+' PNG file(s) deleted from Storage.';
       }
       await loadCatalog();
       const owners=Number(data?.owners_refunded||0), total=Number(data?.total_refunded||0);
-      status('catalogStatus',`${item.name} permanently removed. ${owners} player(s) refunded ${total.toLocaleString()} coins in total.${storageMessage}`,!!storageMessage.includes('WARNING'));
-    }catch(error){status('catalogStatus',error.message||'Could not remove cosmetic or process refunds.',true);}
+      status('catalogStatus',`${item.name} permanently removed. ${owners} player(s) refunded ${total.toLocaleString()} coins in total. ${storageMessage}`);
+    }catch(error){status('catalogStatus',error.message||'Could not remove cosmetic or its Storage files.',true);}
   }
 
   async function setCosmeticActive(item,active){
