@@ -178,14 +178,14 @@
       </section>
 
       <section class="cosmetic-manager" id="itemShopManager">
-        <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button></div>
+        <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button><button id="forceShopResetBtn" type="button">Force shop reset now</button></div></div>
         <form id="forceShopForm" class="cosmetic-form">
           <div class="form-grid">
             <label class="field">Cosmetic to feature<select id="forceShopCosmetic" required></select></label>
             <label class="field">Days in shop<input id="forceShopDays" type="number" min="1" max="30" value="1" required><span class="dimension">Default is 1 day. Choose 1–30 days.</span></label>
           </div>
           <div class="cosmetic-actions"><button id="forceShopSubmit" type="submit">Force into Item Shop</button></div>
-          <div id="forceShopStatus" class="status" aria-live="polite"></div>
+          <div id="forceShopStatus" class="status" aria-live="polite"></div><div class="dimension">A manual reset immediately generates a new random shop for everyone. The normal daily reset remains scheduled for 00:00 UTC.</div>
         </form>
         <h3 style="margin:18px 0 8px">Forced shop items</h3>
         <div id="forcedShopList" class="catalog-grid"><div class="empty">Loading forced items…</div></div>
@@ -668,6 +668,7 @@
   }
   $('forceShopForm').addEventListener('submit',async event=>{event.preventDefault();const id=$('forceShopCosmetic').value,days=Number($('forceShopDays').value);if(!id){status('forceShopStatus','Choose a cosmetic first.',true);return;}if(!Number.isInteger(days)||days<1||days>30){status('forceShopStatus','Choose between 1 and 30 days.',true);return;}$('forceShopSubmit').disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_item',{p_cosmetic_id:id,p_days:days});if(error)throw error;status('forceShopStatus','Cosmetic forced into the shop until '+new Date(data.ends_at).toLocaleString()+'.');await loadForcedShopItems();}catch(error){status('forceShopStatus',error.message||'Could not schedule cosmetic.',true);}finally{$('forceShopSubmit').disabled=false;}});
   $('refreshForcedShopBtn').addEventListener('click',loadForcedShopItems);
+  $('forceShopResetBtn').addEventListener('click',async()=>{if(!confirm('Force a new Item Shop rotation for every player now? The next automatic UTC reset will remain unchanged.'))return;const b=$('forceShopResetBtn');b.disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_reset');if(error)throw error;status('forceShopStatus','Shop reset successfully. New rotation is live for everyone.');}catch(error){status('forceShopStatus',error.message||'Could not reset shop.',true);}finally{b.disabled=false;}});
 
   async function enterAdmin(user) {
     const { data, error } = await sb
