@@ -177,6 +177,32 @@
         </form>
       </section>
 
+      <section class="cosmetic-manager" id="itemShopManager">
+        <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button></div>
+        <form id="forceShopForm" class="cosmetic-form">
+          <div class="form-grid">
+            <label class="field">Cosmetic to feature<select id="forceShopCosmetic" required></select></label>
+            <label class="field">Days in shop<input id="forceShopDays" type="number" min="1" max="30" value="1" required><span class="dimension">Default is 1 day. Choose 1–30 days.</span></label>
+          </div>
+          <div class="cosmetic-actions"><button id="forceShopSubmit" type="submit">Force into Item Shop</button></div>
+          <div id="forceShopStatus" class="status" aria-live="polite"></div>
+        </form>
+        <h3 style="margin:18px 0 8px">Forced shop items</h3>
+        <div id="forcedShopList" class="catalog-grid"><div class="empty">Loading forced items…</div></div>
+      </section>
+
+      <section class="cosmetic-manager" id="broadcastManager">
+        <div class="topline"><div><h2>Notifications, announcements & compensation</h2><div class="sub">Send an in-game announcement or patch notes to every player account. Optionally grant coins to every account at the same time.</div></div></div>
+        <form id="broadcastForm" class="cosmetic-form">
+          <div class="form-grid">
+            <label class="field">Announcement title<input id="broadcastTitle" maxlength="100" required placeholder="e.g. Update 1.2 — Patch Notes"></label>
+            <label class="field">Coins to grant each account<input id="broadcastCoins" type="number" min="0" max="1000000" step="1" value="0" required><span class="dimension">Use 0 for no compensation. The amount is granted to every existing player profile.</span></label>
+            <label class="field" style="grid-column:1/-1">Message / patch notes<textarea id="broadcastMessage" maxlength="4000" required placeholder="Write your announcement, patch notes, or compensation explanation..."></textarea></label>
+          </div>
+          <div class="cosmetic-actions"><button id="broadcastSendBtn" type="submit">Send to all players</button></div>
+          <div id="broadcastStatus" class="status" aria-live="polite"></div>
+        </form>
+      </section>
       <div class="notice">
         Administrative changes are applied directly through protected Supabase functions and recorded in the audit log. Double-check the selected player before applying a change.
       </div>
@@ -596,6 +622,7 @@
 
       const items = data || [];
       catalogItems = items;
+      populateForceShopSelect();
       const skins = items.filter(item => item.type === 'skin');
       const pickaxes = items.filter(item => item.type === 'pickaxe');
 
@@ -626,6 +653,22 @@
     }
   }
 
+  function populateForceShopSelect(){
+    const select=$('forceShopCosmetic'); if(!select)return; select.replaceChildren();
+    const active=catalogItems.filter(x=>x.active!==false);
+    active.forEach(item=>{const opt=document.createElement('option');opt.value=item.id;opt.textContent=`${item.name} (${item.type})`;select.append(opt);});
+    if(!active.length){const opt=document.createElement('option');opt.value='';opt.textContent='No active cosmetics';select.append(opt);}
+  }
+  async function loadForcedShopItems(){
+    const host=$('forcedShopList'); if(!host)return; host.replaceChildren();
+    try{const {data,error}=await sb.rpc('hitta_get_admin_forced_shop_items');if(error)throw error;
+      if(!Array.isArray(data)||!data.length){host.innerHTML='<div class="empty">No cosmetics are currently forced into the shop.</div>';return;}
+      data.forEach(item=>{const row=document.createElement('div');row.className='player';const head=document.createElement('div');head.className='player-head';const info=document.createElement('div');const name=document.createElement('div');name.className='username';name.textContent=item.name+' · '+item.type;const time=document.createElement('div');time.className='muted';time.textContent='Leaves: '+new Date(item.ends_at).toLocaleString();info.append(name,time);const remove=document.createElement('button');remove.className='danger';remove.textContent='Stop forcing';remove.addEventListener('click',async()=>{if(!confirm('Stop forcing '+item.name+' into the shop?'))return;const {error}=await sb.rpc('hitta_admin_unforce_shop_item',{p_cosmetic_id:item.id});if(error){status('forceShopStatus',error.message,true);return;}status('forceShopStatus',item.name+' is no longer forced.');await loadForcedShopItems();});head.append(info,remove);row.append(head);host.append(row);});
+    }catch(error){host.innerHTML='<div class="empty">Could not load forced shop items.</div>';status('forceShopStatus',error.message||'Could not load forced shop items.',true);}
+  }
+  $('forceShopForm').addEventListener('submit',async event=>{event.preventDefault();const id=$('forceShopCosmetic').value,days=Number($('forceShopDays').value);if(!id){status('forceShopStatus','Choose a cosmetic first.',true);return;}if(!Number.isInteger(days)||days<1||days>30){status('forceShopStatus','Choose between 1 and 30 days.',true);return;}$('forceShopSubmit').disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_item',{p_cosmetic_id:id,p_days:days});if(error)throw error;status('forceShopStatus','Cosmetic forced into the shop until '+new Date(data.ends_at).toLocaleString()+'.');await loadForcedShopItems();}catch(error){status('forceShopStatus',error.message||'Could not schedule cosmetic.',true);}finally{$('forceShopSubmit').disabled=false;}});
+  $('refreshForcedShopBtn').addEventListener('click',loadForcedShopItems);
+
   async function enterAdmin(user) {
     const { data, error } = await sb
       .from('admin_users')
@@ -650,7 +693,25 @@
     $('roleBadge').textContent = data.role;
     status('searchStatus', 'You are signed in. Search for a player by username.');
     await loadCatalog();
+    await loadForcedShopItems();
   }
+
+  $('broadcastForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const title=$('broadcastTitle').value.trim(), message=$('broadcastMessage').value.trim(), coins=Number($('broadcastCoins').value);
+    if(!title || !message){status('broadcastStatus','Enter both a title and a message.',true);return;}
+    if(!Number.isSafeInteger(coins)||coins<0||coins>1000000){status('broadcastStatus','Coin grant must be a whole number from 0 to 1,000,000.',true);return;}
+    const confirmation=`Send this announcement to every player?${coins>0?'\n\nThis will also grant '+coins.toLocaleString()+' coins to EACH account.':''}`;
+    if(!confirm(confirmation)) return;
+    $('broadcastSendBtn').disabled=true; status('broadcastStatus','Sending announcement and applying compensation…');
+    try{
+      const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:message,p_coin_grant:coins});
+      if(error) throw error;
+      status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each. Total coins granted: ${Number(data?.total_coins_granted||0).toLocaleString()}.`);
+      $('broadcastForm').reset(); $('broadcastCoins').value='0';
+    }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}
+    finally{$('broadcastSendBtn').disabled=false;}
+  });
 
   async function initialize() {
     status('loginStatus', 'Checking sign-in…');
