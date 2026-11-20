@@ -262,10 +262,11 @@
           p_prestige: args.prestige ?? null
         });
         if (error) throw error;
-        statusText(editStatus, 'Change saved. Refreshing player details…');
-        await refreshSearch();
+        await refreshSearch(player.user_id, 'Saved. Player details updated.');
+
       } catch (error) {
         statusText(editStatus, error.message || 'Could not apply this change.', true);
+        status('searchStatus', error.message || 'Could not refresh player details.', true);
       } finally {
         buttons.forEach(button => button.disabled = false);
       }
@@ -307,8 +308,8 @@
           p_action: action
         });
         if (error) throw error;
-        statusText(editStatus, 'Change saved. Refreshing player details…');
-        await refreshSearch();
+        await refreshSearch(player.user_id, 'Saved. Player details updated.');
+
       } catch (error) {
         statusText(editStatus, error.message || 'Could not apply this action.', true);
       } finally {
@@ -335,17 +336,31 @@
 
   let catalogItems = [];
   let lastSearch = '';
-  async function refreshSearch() {
+
+  async function refreshSearch(updatedPlayerId = null, successMessage = '') {
     const { data, error } = await sb.rpc('hitta_admin_search_players', { p_search: lastSearch });
     if (error) throw error;
+
     $('results').replaceChildren();
-    if (!data || !data.length) $('results').innerHTML = '<div class="empty">No matching players found.</div>';
-    else {
+    let updatedCard = null;
+
+    if (!data || !data.length) {
+      $('results').innerHTML = '<div class="empty">No matching players found.</div>';
+    } else {
       const fragment = document.createDocumentFragment();
-      data.forEach(player => fragment.append(renderPlayer(player)));
+      data.forEach(player => {
+        const card = renderPlayer(player);
+        if (updatedPlayerId && player.user_id === updatedPlayerId) updatedCard = card;
+        fragment.append(card);
+      });
       $('results').append(fragment);
     }
+
     status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
+    if (updatedCard && successMessage) {
+      const message = updatedCard.querySelector('.editStatus');
+      if (message) statusText(message, successMessage);
+    }
   }
 
   function renderCosmetic(item) {
@@ -493,18 +508,7 @@
     $('results').replaceChildren();
     status('searchStatus', 'Searching…');
     try {
-      const { data, error } = await sb.rpc('hitta_admin_search_players', {
-        p_search: query
-      });
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        $('results').innerHTML = '<div class="empty">No matching players found.</div>';
-      } else {
-        const fragment = document.createDocumentFragment();
-        data.forEach(player => fragment.append(renderPlayer(player)));
-        $('results').append(fragment);
-      }
-      status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
+      await refreshSearch();
     } catch (error) {
       status('searchStatus', error.message || 'Player search failed.', true);
     } finally {
