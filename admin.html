@@ -503,7 +503,7 @@
     const rarity = document.createElement('span');
     rarity.className = 'rarity-chip';
     rarity.textContent = safeText(item.rarity);
-    rarity.style.color = RARITY_COLORS[item.rarity] || '#9aa5b5';
+    rarity.style.color = RARITY_COLORS[String(item.rarity || '').toLowerCase()] || '#9aa5b5';
 
     head.append(identity, rarity);
 
@@ -554,9 +554,12 @@
     if(!ok) throw new Error(label+' must be exactly '+w+'×'+h+' pixels. Your file is '+actual+'.');
   }
   async function uploadAsset(path,file){
-    const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:false,cacheControl:'3600'});
-    if(error) throw error;
-    const {data}=sb.storage.from('hitta-cosmetics').getPublicUrl(path);
+    const bucket = sb.storage.from('hitta-cosmetics');
+    const {error}=await bucket.upload(path,file,{contentType:'image/png',upsert:false,cacheControl:'3600'});
+    // An earlier interrupted attempt may already have uploaded this exact asset path.
+    // Reuse that existing object rather than failing the catalog publish.
+    if(error && !(String(error.statusCode)==='409' || /already exists|duplicate/i.test(error.message || ''))) throw error;
+    const {data}=bucket.getPublicUrl(path);
     return data.publicUrl;
   }
   async function ensureUniqueId(id){
@@ -565,7 +568,7 @@
   }
   async function publishCosmetic(type){
     const skin=type==='skin'; const prefix=skin?'skin':'pickaxe';
-    const name=$(prefix+'Name').value.trim(); const rarity=$(prefix+'Rarity').value; const price=Number($(prefix+'Price').value);
+    const name=$(prefix+'Name').value.trim(); const rarityKey=$(prefix+'Rarity').value; const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1); const price=Number($(prefix+'Price').value);
     const description=$(prefix+'Description').value.trim(); const btn=$(skin?'publishSkinBtn':'publishPickaxeBtn'); const statusId=skin?'skinUploadStatus':'pickaxeUploadStatus';
     if(!name) throw new Error('Enter a cosmetic name.');
     if(!Number.isSafeInteger(price)||price<0||price>1000000) throw new Error('Enter a whole-number price between 0 and 1,000,000.');
@@ -596,7 +599,8 @@
   async function editCosmetic(item){
     const nextName=prompt('Cosmetic name:',item.name); if(nextName===null) return;
     const nextRarity=prompt('Rarity (common, uncommon, rare, epic, legendary, mythic, exotic, ancient, relic, shadow, divine, celestial, prismatic):',item.rarity); if(nextRarity===null) return;
-    const rarity=nextRarity.trim().toLowerCase(); if(!RARITIES.includes(rarity)){status('catalogStatus','That rarity is not valid.',true);return;}
+    const rarityKey=nextRarity.trim().toLowerCase(); if(!RARITIES.includes(rarityKey)){status('catalogStatus','That rarity is not valid.',true);return;}
+    const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1);
     const nextPrice=prompt('Price in coins:',String(item.price)); if(nextPrice===null) return;
     const price=Number(nextPrice); if(!Number.isSafeInteger(price)||price<0||price>1000000){status('catalogStatus','Enter a whole-number price between 0 and 1,000,000.',true);return;}
     try{const {error}=await sb.from('cosmetic_catalog').update({name:nextName.trim(),rarity,price}).eq('id',item.id);if(error)throw error;await loadCatalog();status('catalogStatus',item.name+' updated.');}
