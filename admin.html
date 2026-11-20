@@ -143,6 +143,7 @@
             <h3>Skins</h3>
             <span id="skinCount" class="catalog-count">0 items</span>
           </div>
+          <input id="skinCatalogSearch" type="search" maxlength="100" placeholder="Search skins by name, ID, rarity, or description…" autocomplete="off" aria-label="Search skin catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
           <div id="skinResults" class="catalog-grid"></div>
         </section>
         <section class="catalog-group">
@@ -150,6 +151,7 @@
             <h3>Pickaxes</h3>
             <span id="pickaxeCount" class="catalog-count">0 items</span>
           </div>
+          <input id="pickaxeCatalogSearch" type="search" maxlength="100" placeholder="Search pickaxes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search pickaxe catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
           <div id="pickaxeResults" class="catalog-grid"></div>
         </section>
       </section>
@@ -291,6 +293,46 @@
     addStat('Pickaxes', Array.isArray(player.owned?.pickaxe) ? player.owned.pickaxe.length : 0);
 
     card.append(head, stats);
+
+    const usernameBox = document.createElement('section');
+    usernameBox.className = 'editbox username-admin-box';
+    usernameBox.innerHTML = `
+      <strong>Manage username</strong>
+      <div class="sub">Override this player's username immediately, or unlock their next normal 14-day username change.</div>
+      <div class="editgrid">
+        <label>New username (admin override)<input class="adminUsernameInput" type="text" maxlength="24" value=""></label>
+      </div>
+      <div class="actions">
+        <button type="button" class="overrideUsernameBtn">Override username</button>
+        <button type="button" class="unlockUsernameBtn secondary">Unlock name change</button>
+      </div>
+      <div class="status usernameAdminStatus" aria-live="polite"></div>`;
+    usernameBox.querySelector('.adminUsernameInput').value = player.username || '';
+    card.append(usernameBox);
+    const usernameInput = usernameBox.querySelector('.adminUsernameInput');
+    const usernameStatus = usernameBox.querySelector('.usernameAdminStatus');
+    usernameBox.querySelector('.overrideUsernameBtn').addEventListener('click', async () => {
+      const nextName = usernameInput.value.trim();
+      if (!nextName || nextName.length > 24) return statusText(usernameStatus, 'Enter a username between 1 and 24 characters.', true);
+      if (!(await immersiveConfirm(`Override ${player.username || 'this player'}'s username to "${nextName}"? This takes effect immediately and starts a new 14-day cooldown.`))) return;
+      const button = usernameBox.querySelector('.overrideUsernameBtn'); button.disabled = true;
+      try {
+        const { data, error } = await sb.rpc('hitta_admin_override_username', { p_target_user_id: player.user_id, p_username: nextName });
+        if (error) throw error;
+        await refreshSearch(player.user_id, `Username changed to ${data?.username || nextName}. A new 14-day cooldown has started.`);
+      } catch (error) { statusText(usernameStatus, error.message || 'Could not override username.', true); }
+      finally { button.disabled = false; }
+    });
+    usernameBox.querySelector('.unlockUsernameBtn').addEventListener('click', async () => {
+      if (!(await immersiveConfirm(`Unlock an immediate username change for ${player.username || 'this player'}? They can choose a new name without waiting for the 14-day cooldown.`))) return;
+      const button = usernameBox.querySelector('.unlockUsernameBtn'); button.disabled = true;
+      try {
+        const { error } = await sb.rpc('hitta_admin_unlock_username_change', { p_target_user_id: player.user_id });
+        if (error) throw error;
+        statusText(usernameStatus, 'Immediate username change unlocked. The player can now change their name.');
+      } catch (error) { statusText(usernameStatus, error.message || 'Could not unlock username change.', true); }
+      finally { button.disabled = false; }
+    });
 
     const controls = document.createElement('section');
     controls.className = 'editbox';
@@ -750,6 +792,33 @@
     catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
+  function renderCatalogLists() {
+    const skins = catalogItems.filter(item => item.type === 'skin');
+    const pickaxes = catalogItems.filter(item => item.type === 'pickaxe');
+    // skin1 is the built-in Starter Skin. Show it even if its DB row was deleted.
+    const hasStarterSkin = skins.some(item => String(item.id).toLowerCase() === 'skin1' || isStarterCosmetic(item));
+    const displaySkins = hasStarterSkin ? skins : [{id:'skin1',type:'skin',name:'Starter Skin',rarity:'common',price:0,active:true,__virtualStarter:true}, ...skins];
+    const renderType = (type, allItems, searchId, resultsId, countId) => {
+      const query = String($(searchId)?.value || '').trim().toLocaleLowerCase();
+      const matches = query ? allItems.filter(item => [item.name,item.id,item.rarity,item.description].some(value => String(value || '').toLocaleLowerCase().includes(query))) : allItems;
+      $(countId).textContent = query ? `${matches.length} of ${allItems.length} items` : `${allItems.length} items`;
+      const host = $(resultsId); host.replaceChildren();
+      if (!matches.length) {
+        const empty = document.createElement('div'); empty.className = 'empty';
+        empty.textContent = query ? `No ${type} match "${$(searchId).value.trim()}".` : `No ${type} found in the shared catalog.`;
+        host.append(empty); return;
+      }
+      const fragment = document.createDocumentFragment();
+      matches.forEach(item => fragment.append(renderCosmetic(item)));
+      host.append(fragment);
+    };
+    renderType('skins', displaySkins, 'skinCatalogSearch', 'skinResults', 'skinCount');
+    renderType('pickaxes', pickaxes, 'pickaxeCatalogSearch', 'pickaxeResults', 'pickaxeCount');
+  }
+
+  $('skinCatalogSearch').addEventListener('input', renderCatalogLists);
+  $('pickaxeCatalogSearch').addEventListener('input', renderCatalogLists);
+
   let catalogLoadVersion = 0;
   async function loadCatalog() {
     const thisLoad = ++catalogLoadVersion;
@@ -775,31 +844,7 @@
       const items = [...unique.values()];
       catalogItems = items;
       populateForceShopSelect();
-      const skins = items.filter(item => item.type === 'skin');
-      const pickaxes = items.filter(item => item.type === 'pickaxe');
-      // skin1 is the built-in Starter Skin. Show it in the admin catalog even if its DB row was deleted.
-      const hasStarterSkin = skins.some(item => String(item.id).toLowerCase() === 'skin1' || isStarterCosmetic(item));
-      const displaySkins = hasStarterSkin ? skins : [{id:'skin1',type:'skin',name:'Starter Skin',rarity:'common',price:0,active:true,__virtualStarter:true} , ...skins];
-
-      $('skinCount').textContent = `${displaySkins.length} items`; 
-      $('pickaxeCount').textContent = `${pickaxes.length} items`;
-
-      if (displaySkins.length) {
-        const fragment = document.createDocumentFragment();
-        displaySkins.forEach(item => fragment.append(renderCosmetic(item)));
-        $('skinResults').append(fragment);
-      } else {
-        $('skinResults').innerHTML = '<div class="empty">No active skins found.</div>';
-      }
-
-      if (pickaxes.length) {
-        const fragment = document.createDocumentFragment();
-        pickaxes.forEach(item => fragment.append(renderCosmetic(item)));
-        $('pickaxeResults').append(fragment);
-      } else {
-        $('pickaxeResults').innerHTML = '<div class="empty">No active pickaxes found.</div>';
-      }
-
+      renderCatalogLists();
       status('catalogStatus', `${items.length} cosmetics in the shared catalog, including disabled items.`);
     } catch (error) {
       status('catalogStatus', error.message || 'Could not load the cosmetic catalog.', true);
@@ -992,8 +1037,6 @@
 (()=>{const root=document.getElementById('immersiveDialog');if(!root)return;const title=document.getElementById('immersiveDialogTitle'),message=document.getElementById('immersiveDialogMessage'),input=document.getElementById('immersiveDialogInput'),cancel=document.getElementById('immersiveDialogCancel'),ok=document.getElementById('immersiveDialogOK');let finish=null;function ask(kind,text,initial=''){return new Promise(resolve=>{finish=resolve;title.textContent=kind==='prompt'?'Enter a value':kind==='alert'?'Notice':'Confirm action';message.textContent=String(text??'');input.style.display=kind==='prompt'?'block':'none';input.value=kind==='prompt'?String(initial??''):'';cancel.style.display=kind==='alert'?'none':'';ok.textContent=kind==='alert'?'OK':kind==='prompt'?'Save':'Continue';root.classList.add('open');root.setAttribute('aria-hidden','false');if(kind==='prompt')input.focus();else ok.focus();});}function close(value){if(!finish)return;const f=finish;finish=null;root.classList.remove('open');root.setAttribute('aria-hidden','true');f(value);}cancel.addEventListener('click',()=>close(false));ok.addEventListener('click',()=>close(input.style.display==='none'?true:input.value));input.addEventListener('keydown',e=>{if(e.key==='Enter')close(input.value);if(e.key==='Escape')close(null)});root.addEventListener('click',e=>{if(e.target===root)close(false)});window.immersiveConfirm=t=>ask('confirm',t);window.immersivePrompt=(t,v='')=>ask('prompt',t,v);window.immersiveAlert=t=>ask('alert',t);})();
 </script>
 
-<script id="admin-clutter-controls">
-(()=>{const sections=[...document.querySelectorAll('#adminPanel .cosmetic-manager')];sections.forEach((section,i)=>{const heading=section.querySelector('h2');if(!heading)return;const bar=heading.parentElement;const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.textContent='Hide section';btn.style.cssText='float:right;padding:6px 10px;font-size:12px';const body=[...section.children].filter(n=>n!==bar);btn.addEventListener('click',()=>{const hidden=body.some(n=>n.style.display==='none');body.forEach(n=>n.style.display=hidden?'':'none');btn.textContent=hidden?'Hide section':'Show section';});bar.append(btn);});})();
-</script>
+
 </body>
 </html>
