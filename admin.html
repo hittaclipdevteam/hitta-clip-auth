@@ -68,7 +68,13 @@
     .cosmetic-card{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
     .cosmetic-thumb{width:62px;height:62px;object-fit:contain;background:#0b0f16;border:1px solid var(--line);border-radius:8px;padding:4px}
     .cosmetic-ident{display:flex;align-items:center;gap:12px;min-width:0}
-    .rarity-chip{border:1px solid currentColor;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase}
+    .rarity-chip{position:relative;isolation:isolate;border:1px solid currentColor;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;text-transform:uppercase;white-space:nowrap}
+    .rarity-chip.prismatic{color:transparent!important;border-color:transparent;background:linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030);background-size:300% 100%;background-clip:text;-webkit-background-clip:text;animation:prismaticText 3s linear infinite}
+    .rarity-chip.prismatic::before{content:"";position:absolute;z-index:-1;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030);background-size:300% 100%;animation:prismaticBorder 3s linear infinite;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor}
+    @keyframes prismaticText{to{background-position:300% 50%}}
+    @keyframes prismaticBorder{to{background-position:300% 50%}}
+    .cosmetic-edit-panel{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:#0d1119}
+    .cosmetic-edit-panel h4{margin:0 0 10px;font-size:14px}
     .file-input{font-size:13px}
     @media(max-width:560px){.form-grid{grid-template-columns:1fr}.cosmetic-form{padding:12px}}
 
@@ -501,9 +507,10 @@
     identity.append(name, detail);
 
     const rarity = document.createElement('span');
-    rarity.className = 'rarity-chip';
+    const rarityKey = String(item.rarity || '').toLowerCase();
+    rarity.className = 'rarity-chip' + (rarityKey === 'prismatic' ? ' prismatic' : '');
     rarity.textContent = safeText(item.rarity);
-    rarity.style.color = RARITY_COLORS[String(item.rarity || '').toLowerCase()] || '#9aa5b5';
+    if (rarityKey !== 'prismatic') rarity.style.color = RARITY_COLORS[rarityKey] || '#9aa5b5';
 
     head.append(identity, rarity);
 
@@ -518,7 +525,7 @@
     const protectedStarter = isStarterCosmetic(item);
     const edit=document.createElement('button'); edit.type='button'; edit.className='secondary'; edit.textContent=protectedStarter?'Starter cosmetic — protected':'Edit details';
     edit.disabled=protectedStarter;
-    if(!protectedStarter) edit.addEventListener('click',()=>editCosmetic(item));
+    if(!protectedStarter) edit.addEventListener('click',()=>toggleCosmeticEditor(card,item,edit));
     const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Disable');
     toggle.disabled=protectedStarter;
     if(!protectedStarter) toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
@@ -596,15 +603,45 @@
   }
   $('skinUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('skin');});
   $('pickaxeUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('pickaxe');});
-  async function editCosmetic(item){
-    const nextName=prompt('Cosmetic name:',item.name); if(nextName===null) return;
-    const nextRarity=prompt('Rarity (common, uncommon, rare, epic, legendary, mythic, exotic, ancient, relic, shadow, divine, celestial, prismatic):',item.rarity); if(nextRarity===null) return;
-    const rarityKey=nextRarity.trim().toLowerCase(); if(!RARITIES.includes(rarityKey)){status('catalogStatus','That rarity is not valid.',true);return;}
-    const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1);
-    const nextPrice=prompt('Price in coins:',String(item.price)); if(nextPrice===null) return;
-    const price=Number(nextPrice); if(!Number.isSafeInteger(price)||price<0||price>1000000){status('catalogStatus','Enter a whole-number price between 0 and 1,000,000.',true);return;}
-    try{const {error}=await sb.from('cosmetic_catalog').update({name:nextName.trim(),rarity,price}).eq('id',item.id);if(error)throw error;await loadCatalog();status('catalogStatus',item.name+' updated.');}
-    catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
+  function toggleCosmeticEditor(card,item,button){
+    const existing=card.querySelector('.cosmetic-edit-panel');
+    if(existing){existing.remove();button.textContent='Edit details';return;}
+    document.querySelectorAll('.cosmetic-edit-panel').forEach(panel=>panel.remove());
+    document.querySelectorAll('.cosmetic-actions button').forEach(b=>{if(b.textContent==='Close editor')b.textContent='Edit details';});
+    const panel=document.createElement('form');
+    panel.className='cosmetic-edit-panel';
+    const heading=document.createElement('h4');heading.textContent='Edit cosmetic';panel.append(heading);
+    const grid=document.createElement('div');grid.className='form-grid';
+    const nameLabel=document.createElement('label');nameLabel.className='field';nameLabel.textContent='Cosmetic name';
+    const nameInput=document.createElement('input');nameInput.type='text';nameInput.maxLength=60;nameInput.required=true;nameInput.value=item.name;nameLabel.append(nameInput);
+    const rarityLabel=document.createElement('label');rarityLabel.className='field';rarityLabel.textContent='Rarity';
+    const raritySelect=document.createElement('select');
+    RARITIES.forEach(key=>raritySelect.add(new Option(key[0].toUpperCase()+key.slice(1),key)));
+    raritySelect.value=String(item.rarity||'common').toLowerCase();rarityLabel.append(raritySelect);
+    const priceLabel=document.createElement('label');priceLabel.className='field';priceLabel.textContent='Price in coins';
+    const priceInput=document.createElement('input');priceInput.type='number';priceInput.min='0';priceInput.max='1000000';priceInput.step='1';priceInput.required=true;priceInput.value=String(item.price);priceLabel.append(priceInput);
+    grid.append(nameLabel,rarityLabel,priceLabel);panel.append(grid);
+    const actions=document.createElement('div');actions.className='cosmetic-actions';
+    const save=document.createElement('button');save.type='submit';save.textContent='Save changes';
+    const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Cancel';
+    const message=document.createElement('div');message.className='status';message.setAttribute('aria-live','polite');
+    actions.append(save,cancel);panel.append(actions,message);card.append(panel);
+    button.textContent='Close editor';
+    cancel.addEventListener('click',()=>{panel.remove();button.textContent='Edit details';});
+    raritySelect.addEventListener('change',()=>{priceInput.value=RARITY_DEFAULT_PRICES[raritySelect.value];});
+    panel.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const nextName=nameInput.value.trim(), rarityKey=raritySelect.value, price=Number(priceInput.value);
+      if(!nextName){statusText(message,'Enter a cosmetic name.',true);return;}
+      if(!Number.isSafeInteger(price)||price<0||price>1000000){statusText(message,'Enter a whole-number price between 0 and 1,000,000.',true);return;}
+      save.disabled=true;cancel.disabled=true;statusText(message,'Saving changes…');
+      try{
+        const rarity=rarityKey[0].toUpperCase()+rarityKey.slice(1);
+        const {error}=await sb.from('cosmetic_catalog').update({name:nextName,rarity,price}).eq('id',item.id);
+        if(error)throw error;
+        await loadCatalog();status('catalogStatus',nextName+' updated.');
+      }catch(error){statusText(message,error.message||'Could not update cosmetic.',true);save.disabled=false;cancel.disabled=false;}
+    });
   }
 
   function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id==='skin1'||id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='classic pick'||name==='default pickaxe'||name==='starter pickaxe';}
