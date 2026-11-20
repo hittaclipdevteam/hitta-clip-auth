@@ -133,7 +133,7 @@
         <div class="topline">
           <div>
             <h2>Shared cosmetic catalog</h2>
-            <div class="sub">Cosmetics currently available to the game.</div>
+            <div class="sub">All cosmetics in the game catalog. Temporarily disabled items remain here and in existing player lockers.</div>
           </div>
           <button id="refreshCatalogBtn" class="secondary" type="button">Refresh catalog</button>
         </div>
@@ -535,10 +535,7 @@
     const toggle=document.createElement('button'); toggle.type='button'; toggle.className='secondary'; toggle.textContent=protectedStarter?'Always enabled':(item.active === false ? 'Enable' : 'Disable');
     toggle.disabled=protectedStarter;
     if(!protectedStarter) toggle.addEventListener('click',()=>setCosmeticActive(item, item.active === false));
-    const remove=document.createElement('button'); remove.type='button'; remove.className='danger'; remove.textContent=protectedStarter?'Starter cosmetic — protected':'Permanently remove + refund';
-    remove.disabled=protectedStarter;
-    if(!protectedStarter) remove.addEventListener('click',()=>permanentlyRemoveCosmetic(item));
-    actions.append(edit,toggle,remove);
+    actions.append(edit,toggle);
     card.append(head, stats, actions);
     return card;
   }
@@ -572,9 +569,10 @@
     const {data}=sb.storage.from('hitta-cosmetics').getPublicUrl(path);
     return data.publicUrl;
   }
-  async function ensureUniqueId(id){
-    const {data,error}=await sb.from('cosmetic_catalog').select('id').eq('id',id).maybeSingle();
-    if(error) throw error; if(data) throw new Error('That cosmetic ID already exists. Change the name to make it unique.');
+  async function findExistingCosmetic(id){
+    const {data,error}=await sb.from('cosmetic_catalog').select('id,type,name,active,rarity,price,description,assets').eq('id',id).maybeSingle();
+    if(error) throw error;
+    return data || null;
   }
   async function publishCosmetic(type){
     const skin=type==='skin'; const prefix=skin?'skin':'pickaxe';
@@ -585,7 +583,13 @@
     const id=slugify(name); if(!id) throw new Error('The name needs at least one letter or number.');
     btn.disabled=true; status(statusId,'Checking image dimensions…');
     try{
-      await ensureUniqueId(id);
+      const existing = await findExistingCosmetic(id);
+      if(existing && existing.type !== type) {
+        throw new Error('This ID is already used by a '+existing.type+'. Choose a different cosmetic name.');
+      }
+      if(existing && existing.active !== false) {
+        throw new Error('A '+type+' with this ID is already active. Edit it in the Shared Cosmetic Catalog instead of adding a duplicate.');
+      }
       const files=skin?{head:$('skinHeadFile').files[0],hand:$('skinHandFile').files[0],foot:$('skinFootFile').files[0]}:{image:$('pickaxeFile').files[0]};
       if(skin){await validatePng(files.head,46,46,'Head');await validatePng(files.hand,20,20,'Hand');await validatePng(files.foot,28,14,'Foot');}
       else await validatePng(files.image,90,60,'Pickaxe');
@@ -595,9 +599,21 @@
       else assets.image=await uploadAsset('pickaxes/'+id+'/'+id+'.png',files.image);
       status(statusId,'Saving cosmetic to the live catalog…');
       const visual=skin?{col:'#7c9cff'}:{handle:'#5b6475',head:'#dbeafe',shine:'#ffffff'};
-      const {error}=await sb.from('cosmetic_catalog').insert({id,type,name,rarity,price,visual,assets,featured:false,active:true});
-      if(error) throw error;
-      status(statusId,'Published! The cosmetic is now in the live catalog.');
+      if(existing) {
+        // Reuse the existing primary-key row. This preserves every player's ownership
+        // and avoids the duplicate-key error caused by trying to insert a disabled item again.
+        const {error:updateError}=await sb.rpc('hitta_admin_update_cosmetic',{
+          p_id:id,p_name:name,p_rarity:rarity,p_price:price,p_description:description,p_assets:assets
+        });
+        if(updateError) throw updateError;
+        const {error:enableError}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});
+        if(enableError) throw enableError;
+        status(statusId,'Existing disabled cosmetic restored and updated. Player ownership and locker entries were preserved.');
+      } else {
+        const {error}=await sb.from('cosmetic_catalog').insert({id,type,name,rarity,price,description,visual,assets,featured:false,active:true});
+        if(error) throw error;
+        status(statusId,'Published! The cosmetic is now in the live catalog.');
+      }
       $(skin?'skinUploadForm':'pickaxeUploadForm').reset();
       $(skin?'skinPrice':'pickaxePrice').value=RARITY_DEFAULT_PRICES[$(skin?'skinRarity':'pickaxeRarity').value];
       await loadCatalog();
@@ -708,25 +724,11 @@
 
   function isStarterCosmetic(item){const id=String(item.id||'').toLowerCase().replace(/[-\s]/g,'_');const name=String(item.name||'').toLowerCase();return id==='skin1'||id.includes('starter')||id.includes('default')||name==='starter'||name==='starter skin'||name==='classic pick'||name==='default pickaxe'||name==='starter pickaxe';}
 
-  async function permanentlyRemoveCosmetic(item){
-    if(isStarterCosmetic(item)){status('catalogStatus','Starter skin and Default pickaxe are protected and cannot be permanently removed.',true);return;}
-    const warning = `PERMANENT REMOVAL\n\n${item.name} will be removed from the shop and every player's inventory.\n\nPlayers who purchased it will receive a coin refund. Players who received it for free will receive no coin refund. Each affected player will receive an in-game account notification.\n\nFor purchases made before refund tracking was installed, the current catalog price is used as the best available estimate.\n\nThis cannot be undone. Continue?`;
-    if(!(await immersiveConfirm(warning))) return;
-    const typed=await immersivePrompt(`Type REMOVE to permanently remove ${item.name} and process refunds:`);
-    if(typed!=='REMOVE') { status('catalogStatus','Removal cancelled.'); return; }
-    try{
-      status('catalogStatus','Removing cosmetic and processing refunds…');
-      const {data,error}=await sb.rpc('hitta_admin_remove_cosmetic',{p_id:item.id});
-      if(error) throw error;
-      await loadCatalog();
-      const owners=Number(data?.owners_refunded||0), total=Number(data?.total_refunded||0);
-      status('catalogStatus',`${item.name} permanently removed. ${owners} player(s) refunded ${total.toLocaleString()} coins in total.`);
-    }catch(error){status('catalogStatus',error.message||'Could not remove cosmetic or process refunds.',true);}
-  }
 
   async function setCosmeticActive(item,active){
-    if(!(await immersiveConfirm((active?'Enable':'Disable')+' '+item.name+'? Disabling hides it from the shop but does not remove it from player inventories.'))) return;
-    try{const {error}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:item.id,p_active:active});if(error)throw error;await loadCatalog();status('catalogStatus',item.name+(active?' enabled.':' disabled; existing owners keep it.'));}
+    const confirmMessage=(active?'Re-enable ':'Temporarily disable ')+item.name+'? '+(active?'It will become eligible for the Item Shop again.':'It will be removed from new Item Shop rotations only. The catalog record, existing ownership, locker entry, and equipped cosmetic are preserved.');
+    if(!(await immersiveConfirm(confirmMessage))) return;
+    try{const {error}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:item.id,p_active:active});if(error)throw error;await loadCatalog();status('catalogStatus',item.name+(active?' re-enabled.':' temporarily disabled from the Item Shop. Catalog and player ownership were preserved.'));}
     catch(error){status('catalogStatus',error.message||'Could not update cosmetic.',true);}
   }
 
