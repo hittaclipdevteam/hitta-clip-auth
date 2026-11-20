@@ -191,6 +191,18 @@
         <div id="forcedShopList" class="catalog-grid"><div class="empty">Loading forced items…</div></div>
       </section>
 
+      <section class="cosmetic-manager" id="refundManagement">
+        <div class="topline"><div><h2>Refund Management</h2><div class="sub">Restore one player's refund eligibility for one specific cosmetic. This does not issue a refund.</div></div></div>
+        <form id="refundUnlockSearchForm" class="row"><input id="refundUnlockSearch" type="search" maxlength="50" placeholder="Search player username…" autocomplete="off"><button type="submit">Find player</button></form>
+        <div id="refundUnlockPlayerStatus" class="status" aria-live="polite"></div>
+        <div class="form-grid" style="margin-top:10px">
+          <label class="field">Player account<select id="refundUnlockPlayer" required><option value="">Search for a player first</option></select></label>
+          <label class="field">Cosmetic<select id="refundUnlockCosmetic" required><option value="">Loading cosmetics…</option></select></label>
+        </div>
+        <div class="cosmetic-actions"><button id="refundUnlockBtn" type="button">Restore refund eligibility</button></div>
+        <div id="refundUnlockStatus" class="status" aria-live="polite"></div>
+      </section>
+
       <section class="cosmetic-manager" id="broadcastManager">
         <div class="topline"><div><h2>Notifications, announcements & compensation</h2><div class="sub">Send an in-game announcement or patch notes to every player account. Optionally grant coins to every account at the same time.</div></div></div>
         <form id="broadcastForm" class="cosmetic-form">
@@ -694,8 +706,38 @@
     $('roleBadge').textContent = data.role;
     status('searchStatus', 'You are signed in. Search for a player by username.');
     await loadCatalog();
+    populateRefundUnlockCosmetics();
     await loadForcedShopItems();
   }
+
+  let refundUnlockMatches = [];
+  $('refundUnlockSearchForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const query=$('refundUnlockSearch').value.trim();
+    if(!query){status('refundUnlockPlayerStatus','Enter a username to search.',true);return;}
+    status('refundUnlockPlayerStatus','Searching player accounts…');
+    try{
+      const {data,error}=await sb.rpc('hitta_admin_search_players',{p_search:query});
+      if(error)throw error;
+      refundUnlockMatches=data||[];
+      const select=$('refundUnlockPlayer');select.replaceChildren();
+      if(!refundUnlockMatches.length){select.add(new Option('No matching players',''));status('refundUnlockPlayerStatus','No matching players found.',true);return;}
+      select.add(new Option('Select a player…',''));
+      refundUnlockMatches.forEach(p=>select.add(new Option(`${p.username||'Player'} · ${p.user_id}`,p.user_id)));
+      status('refundUnlockPlayerStatus',`${refundUnlockMatches.length} matching account(s) found. Select the correct player.`);
+    }catch(error){status('refundUnlockPlayerStatus',error.message||'Player search failed.',true);}
+  });
+  function populateRefundUnlockCosmetics(){const select=$('refundUnlockCosmetic');select.replaceChildren();select.add(new Option('Select a cosmetic…',''));catalogItems.forEach(item=>select.add(new Option(`${item.name} · ${item.type}`,`${item.type}:${item.id}`)));}
+  $('refundUnlockBtn').addEventListener('click',async()=>{
+    const userId=$('refundUnlockPlayer').value, key=$('refundUnlockCosmetic').value;
+    if(!userId||!key){status('refundUnlockStatus','Select both a player and a cosmetic.',true);return;}
+    const [type,...rest]=key.split(':'),id=rest.join(':');
+    if(!confirm('Restore refund eligibility for this player and cosmetic? This does not grant coins or issue a refund. The next qualifying purchase may be refunded once within 24 hours.'))return;
+    const button=$('refundUnlockBtn');button.disabled=true;status('refundUnlockStatus','Updating refund eligibility…');
+    try{const {data,error}=await sb.rpc('hitta_admin_restore_refund_eligibility',{p_target_user_id:userId,p_cosmetic_type:type,p_cosmetic_id:id});if(error)throw error;status('refundUnlockStatus','Refund eligibility restored. The player must make a new qualifying purchase; no coins were granted.');}
+    catch(error){status('refundUnlockStatus',error.message||'Could not restore refund eligibility.',true);}
+    finally{button.disabled=false;}
+  });
 
   $('broadcastForm').addEventListener('submit', async (event) => {
     event.preventDefault();
