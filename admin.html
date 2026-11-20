@@ -45,6 +45,15 @@
     .stats { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
     .stat { background:#1b2230; border:1px solid #303b4e; border-radius:8px; padding:6px 9px; font-size:12px }
     .notice { border:1px solid #5a4a26; background:#292315; color:#f0d89d; padding:12px 14px; border-radius:10px; margin-top:18px; font-size:13px }
+    .editbox { margin-top:16px; padding-top:14px; border-top:1px solid var(--line) }
+    .editgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:9px; margin-top:10px }
+    .editgrid label { display:grid; gap:5px; color:var(--muted); font-size:12px }
+    select { width:100%; background:#0d1119; border:1px solid #394456; border-radius:9px; color:var(--text); padding:12px 13px; font:inherit; min-width:0 }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
+    .actions button { padding:9px 12px; font-size:13px }
+    .bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#0d1119 }
+    .bulk-actions button { font-size:13px }
+    button.danger { background:#55272d; color:#ffe7e7; border:1px solid #88434b }
     .empty { color:var(--muted); text-align:center; padding:28px 10px; border:1px dashed var(--line); border-radius:12px }
     footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
     @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
@@ -117,7 +126,7 @@
       </section>
 
       <div class="notice">
-        Account editing is temporarily disabled while the game's cloud-save system is being hardened. Searching and viewing the catalog are read-only. Do not use browser developer tools to call the editing function manually.
+        Administrative changes are applied directly through protected Supabase functions and recorded in the audit log. Double-check the selected player before applying a change.
       </div>
     </section>
 
@@ -177,7 +186,166 @@
     addStat('Pickaxes', Array.isArray(player.owned?.pickaxe) ? player.owned.pickaxe.length : 0);
 
     card.append(head, stats);
+
+    const controls = document.createElement('section');
+    controls.className = 'editbox';
+    controls.innerHTML = `
+      <strong>Manage coins</strong>
+      <div class="editgrid">
+        <label>Amount of coins<input class="coinAmount" type="number" min="1" step="1" placeholder="e.g. 500"></label>
+      </div>
+      <div class="actions">
+        <button type="button" class="addCoinsBtn">Add coins</button>
+        <button type="button" class="removeCoinsBtn danger">Remove coins</button>
+      </div>
+      <div class="editbox">
+        <strong>Manage cosmetics</strong>
+        <div class="editgrid">
+          <label>Cosmetic type<select class="itemType"><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option></select></label>
+          <label>Cosmetic<select class="itemId"></select></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="unlockBtn">Unlock cosmetic</button>
+          <button type="button" class="removeItemBtn danger">Remove cosmetic</button>
+        </div>
+      </div>
+      <div class="editbox">
+        <strong>Manage progression</strong>
+        <div class="editgrid">
+          <label>XP (0–999)<input class="xpValue" type="number" min="0" max="999" step="1" value="${Number(progression.xp ?? 0)}"></label>
+          <label>Level<input class="levelValue" type="number" min="1" max="1000" step="1" value="${Number(progression.level ?? 1)}"></label>
+          <label>Prestige (0–11)<input class="prestigeValue" type="number" min="0" max="11" step="1" value="${Number(progression.prestige ?? 0)}"></label>
+        </div>
+        <div class="actions"><button type="button" class="saveProgressBtn">Save progression</button></div>
+      </div>
+      <div class="editbox">
+        <strong>Bulk account actions</strong>
+        <div class="sub">Unlock every active catalog cosmetic, or reset this account completely.</div>
+        <div class="bulk-actions">
+          <button type="button" class="unlockAllBtn">Unlock all cosmetics</button>
+          <button type="button" class="removeAllBtn danger">Remove all / Reset account</button>
+        </div>
+      </div>
+      <div class="status editStatus" aria-live="polite"></div>`;
+    card.append(controls);
+
+    const typeSelect = controls.querySelector('.itemType');
+    const itemSelect = controls.querySelector('.itemId');
+    function fillItems() {
+      const type = typeSelect.value;
+      const items = catalogItems.filter(item => item.type === type);
+      itemSelect.replaceChildren();
+      items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.name} (${item.id})`;
+        itemSelect.append(option);
+      });
+    }
+    typeSelect.addEventListener('change', fillItems);
+    fillItems();
+
+    const editStatus = controls.querySelector('.editStatus');
+    const runAction = async (action, args = {}) => {
+      const buttons = controls.querySelectorAll('button');
+      buttons.forEach(button => button.disabled = true);
+      statusText(editStatus, 'Applying change…');
+      try {
+        const { error } = await sb.rpc('hitta_admin_update_player', {
+          p_target_user_id: player.user_id,
+          p_action: action,
+          p_amount: args.amount ?? null,
+          p_item_type: args.itemType ?? null,
+          p_item_id: args.itemId ?? null,
+          p_xp: args.xp ?? null,
+          p_level: args.level ?? null,
+          p_prestige: args.prestige ?? null
+        });
+        if (error) throw error;
+        statusText(editStatus, 'Change saved. Refreshing player details…');
+        await refreshSearch();
+      } catch (error) {
+        statusText(editStatus, error.message || 'Could not apply this change.', true);
+      } finally {
+        buttons.forEach(button => button.disabled = false);
+      }
+    };
+    controls.querySelector('.addCoinsBtn').addEventListener('click', () => {
+      const amount = Number(controls.querySelector('.coinAmount').value);
+      if (!Number.isSafeInteger(amount) || amount <= 0) return statusText(editStatus, 'Enter a positive whole-number coin amount.', true);
+      if (confirm(`Add ${amount} coins to ${player.username || 'this player'}?`)) runAction('add_coins', { amount });
+    });
+    controls.querySelector('.removeCoinsBtn').addEventListener('click', () => {
+      const amount = Number(controls.querySelector('.coinAmount').value);
+      if (!Number.isSafeInteger(amount) || amount <= 0) return statusText(editStatus, 'Enter a positive whole-number coin amount.', true);
+      if (confirm(`Remove ${amount} coins from ${player.username || 'this player'}?`)) runAction('remove_coins', { amount });
+    });
+    controls.querySelector('.unlockBtn').addEventListener('click', () => {
+      if (!itemSelect.value) return statusText(editStatus, 'Choose a cosmetic first.', true);
+      const item = catalogItems.find(x => x.type === typeSelect.value && x.id === itemSelect.value);
+      if (confirm(`Unlock ${item?.name || itemSelect.value} for ${player.username || 'this player'}?`)) runAction('unlock_cosmetic', { itemType: typeSelect.value, itemId: itemSelect.value });
+    });
+    controls.querySelector('.removeItemBtn').addEventListener('click', () => {
+      if (!itemSelect.value) return statusText(editStatus, 'Choose a cosmetic first.', true);
+      const item = catalogItems.find(x => x.type === typeSelect.value && x.id === itemSelect.value);
+      if (confirm(`Remove ${item?.name || itemSelect.value} from ${player.username || 'this player'}?`)) runAction('remove_cosmetic', { itemType: typeSelect.value, itemId: itemSelect.value });
+    });
+    controls.querySelector('.saveProgressBtn').addEventListener('click', () => {
+      const xp = Number(controls.querySelector('.xpValue').value);
+      const level = Number(controls.querySelector('.levelValue').value);
+      const prestige = Number(controls.querySelector('.prestigeValue').value);
+      if (![xp, level, prestige].every(Number.isSafeInteger) || xp < 0 || xp > 999 || level < 1 || level > 1000 || prestige < 0 || prestige > 11) return statusText(editStatus, 'Check XP, level, and prestige values.', true);
+      if (confirm(`Set ${player.username || 'this player'} to Prestige ${prestige}, Level ${level}, ${xp} XP?`)) runAction('set_progression', { xp, level, prestige });
+    });
+    const runBulkAction = async (action) => {
+      const buttons = controls.querySelectorAll('button');
+      buttons.forEach(button => button.disabled = true);
+      statusText(editStatus, 'Applying account action…');
+      try {
+        const { error } = await sb.rpc('hitta_admin_bulk_player_action', {
+          p_target_user_id: player.user_id,
+          p_action: action
+        });
+        if (error) throw error;
+        statusText(editStatus, 'Change saved. Refreshing player details…');
+        await refreshSearch();
+      } catch (error) {
+        statusText(editStatus, error.message || 'Could not apply this action.', true);
+      } finally {
+        buttons.forEach(button => button.disabled = false);
+      }
+    };
+    controls.querySelector('.unlockAllBtn').addEventListener('click', () => {
+      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe').length;
+      if (confirm(`Unlock all ${count} active catalog cosmetics for ${player.username || 'this player'}?`)) runBulkAction('unlock_all');
+    });
+    controls.querySelector('.removeAllBtn').addEventListener('click', () => {
+      if (!confirm(`WARNING: This will set ${player.username || 'this player'} to 0 coins, remove all non-starter cosmetics, and reset XP, level, and prestige. This cannot be undone. Continue?`)) return;
+      const typed = prompt('Type RESET ACCOUNT to confirm this destructive action:');
+      if (typed === 'RESET ACCOUNT') runBulkAction('remove_all');
+      else statusText(editStatus, 'Account reset cancelled.');
+    });
     return card;
+  }
+
+  function statusText(element, message, isError = false) {
+    element.textContent = message || '';
+    element.classList.toggle('error', !!isError);
+  }
+
+  let catalogItems = [];
+  let lastSearch = '';
+  async function refreshSearch() {
+    const { data, error } = await sb.rpc('hitta_admin_search_players', { p_search: lastSearch });
+    if (error) throw error;
+    $('results').replaceChildren();
+    if (!data || !data.length) $('results').innerHTML = '<div class="empty">No matching players found.</div>';
+    else {
+      const fragment = document.createDocumentFragment();
+      data.forEach(player => fragment.append(renderPlayer(player)));
+      $('results').append(fragment);
+    }
+    status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
   }
 
   function renderCosmetic(item) {
@@ -232,6 +400,7 @@
       if (error) throw error;
 
       const items = data || [];
+      catalogItems = items;
       const skins = items.filter(item => item.type === 'skin');
       const pickaxes = items.filter(item => item.type === 'pickaxe');
 
@@ -319,6 +488,7 @@
   $('searchForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const query = $('searchInput').value.trim();
+    lastSearch = query;
     $('searchBtn').disabled = true;
     $('results').replaceChildren();
     status('searchStatus', 'Searching…');
