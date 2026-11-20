@@ -32,6 +32,12 @@
     .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:20px }
     .role { display:inline-flex; border:1px solid #4561a0; background:#1b2948; color:#b9caff; border-radius:99px; padding:4px 10px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em }
     .results { margin-top:18px; display:grid; gap:10px }
+    .catalog-grid { margin-top:12px; display:grid; gap:10px }
+    .catalog-group { margin-top:22px; padding-top:18px; border-top:1px solid var(--line) }
+    .catalog-group:first-of-type { margin-top:8px; padding-top:0; border-top:0 }
+    .catalog-heading { display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .catalog-heading h3 { margin:0; font-size:16px }
+    .catalog-count { color:var(--muted); font-size:12px }
     .player { border:1px solid var(--line); border-radius:12px; padding:15px; background:#10151e; }
     .player-head { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap }
     .username { font-weight:800; font-size:16px; overflow-wrap:anywhere }
@@ -94,7 +100,20 @@
           <button id="refreshCatalogBtn" class="secondary" type="button">Refresh catalog</button>
         </div>
         <div id="catalogStatus" class="status" aria-live="polite">Loading catalog…</div>
-        <div id="catalogResults" class="results"></div>
+        <section class="catalog-group">
+          <div class="catalog-heading">
+            <h3>Skins</h3>
+            <span id="skinCount" class="catalog-count">0 items</span>
+          </div>
+          <div id="skinResults" class="catalog-grid"></div>
+        </section>
+        <section class="catalog-group">
+          <div class="catalog-heading">
+            <h3>Pickaxes</h3>
+            <span id="pickaxeCount" class="catalog-count">0 items</span>
+          </div>
+          <div id="pickaxeResults" class="catalog-grid"></div>
+        </section>
       </section>
 
       <div class="notice">
@@ -198,7 +217,8 @@
   async function loadCatalog() {
     const button = $('refreshCatalogBtn');
     if (button) button.disabled = true;
-    $('catalogResults').replaceChildren();
+    $('skinResults').replaceChildren();
+    $('pickaxeResults').replaceChildren();
     status('catalogStatus', 'Loading shared cosmetics…');
 
     try {
@@ -206,22 +226,35 @@
         .from('cosmetic_catalog')
         .select('id,type,name,rarity,price')
         .eq('active', true)
-        .order('type', { ascending: true })
-        .order('price', { ascending: true });
+        .order('price', { ascending: true })
+        .order('name', { ascending: true });
 
       if (error) throw error;
 
-      if (!data || data.length === 0) {
-        $('catalogResults').innerHTML = '<div class="empty">No active cosmetics found.</div>';
-      } else {
+      const items = data || [];
+      const skins = items.filter(item => item.type === 'skin');
+      const pickaxes = items.filter(item => item.type === 'pickaxe');
+
+      $('skinCount').textContent = `${skins.length} items`;
+      $('pickaxeCount').textContent = `${pickaxes.length} items`;
+
+      if (skins.length) {
         const fragment = document.createDocumentFragment();
-        data.forEach(item => fragment.append(renderCosmetic(item)));
-        $('catalogResults').append(fragment);
+        skins.forEach(item => fragment.append(renderCosmetic(item)));
+        $('skinResults').append(fragment);
+      } else {
+        $('skinResults').innerHTML = '<div class="empty">No active skins found.</div>';
       }
 
-      const skins = (data || []).filter(item => item.type === 'skin').length;
-      const pickaxes = (data || []).filter(item => item.type === 'pickaxe').length;
-      status('catalogStatus', `${data?.length || 0} active cosmetics · ${skins} skins · ${pickaxes} pickaxes`);
+      if (pickaxes.length) {
+        const fragment = document.createDocumentFragment();
+        pickaxes.forEach(item => fragment.append(renderCosmetic(item)));
+        $('pickaxeResults').append(fragment);
+      } else {
+        $('pickaxeResults').innerHTML = '<div class="empty">No active pickaxes found.</div>';
+      }
+
+      status('catalogStatus', `${items.length} active cosmetics in the shared catalog.`);
     } catch (error) {
       status('catalogStatus', error.message || 'Could not load the cosmetic catalog.', true);
     } finally {
