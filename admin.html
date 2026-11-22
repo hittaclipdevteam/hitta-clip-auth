@@ -357,6 +357,7 @@
         <strong>Manage cosmetics</strong>
         <div class="editgrid">
           <label>Cosmetic type<select class="itemType"><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option></select></label>
+          <label>Search cosmetic<input class="itemSearch" type="search" maxlength="100" placeholder="Search skins or pickaxes by name, ID, or rarity…" autocomplete="off"></label>
           <label>Cosmetic<select class="itemId"></select></label>
         </div>
         <div class="actions">
@@ -406,9 +407,11 @@
 
     const typeSelect = controls.querySelector('.itemType');
     const itemSelect = controls.querySelector('.itemId');
+    const itemSearch = controls.querySelector('.itemSearch');
     function fillItems() {
       const type = typeSelect.value;
-      const items = catalogItems.filter(item => item.type === type);
+      const query = itemSearch.value.trim().toLowerCase();
+      const items = catalogItems.filter(item => item.type === type && (!query || [item.name,item.id,item.rarity,item.description].some(value => String(value||'').toLowerCase().includes(query))));
       itemSelect.replaceChildren();
       items.forEach(item => {
         const option = document.createElement('option');
@@ -416,8 +419,12 @@
         option.textContent = `${item.name} (${item.id})`;
         itemSelect.append(option);
       });
+      if (!items.length) {
+        const empty = document.createElement('option'); empty.disabled = true; empty.textContent = 'No matching cosmetics'; itemSelect.append(empty);
+      }
     }
     typeSelect.addEventListener('change', fillItems);
+    itemSearch.addEventListener('input', fillItems);
     fillItems();
 
     const editStatus = controls.querySelector('.editStatus');
@@ -448,12 +455,12 @@
       clanTagPreview.textContent='['+(clanTagInput.value||'CLAN')+']';
       clanTagPreview.style.color=color==='custom'?clanTagHex.value:(clanTagColorMap[color]||'#ffffff');
       clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';
-      clanTagPreview.style.webkitTextStroke='';clanTagPreview.style.textShadow='';
+      clanTagPreview.style.webkitTextStroke='';clanTagPreview.style.webkitTextFillColor='';clanTagPreview.style.textShadow='';
       if(color==='rainbow_white'||color==='rainbow_black'){
         clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';
-        clanTagPreview.style.backgroundSize='400% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagRainbow 2.8s linear infinite';
-        if(color==='rainbow_white'){clanTagPreview.style.webkitTextStroke='0.45px #ffffff';clanTagPreview.style.textShadow='0 0 3px rgba(255,255,255,.8)';clanTagPreview.classList.add('rainbow-white-preview');}
-        else {clanTagPreview.style.webkitTextStroke='0.55px #171717';clanTagPreview.style.textShadow='0 0 3px rgba(0,0,0,.85)';clanTagPreview.classList.add('rainbow-black-preview');}
+        clanTagPreview.style.backgroundSize='400% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.webkitTextFillColor='transparent';clanTagPreview.style.display='inline-block';clanTagPreview.style.animation='hittaClanTagRainbow 2.8s linear infinite';
+        if(color==='rainbow_white'){clanTagPreview.style.webkitTextStroke='0.75px #ffffff';clanTagPreview.style.textShadow='0 0 4px rgba(255,255,255,.95)';clanTagPreview.classList.add('rainbow-white-preview');}
+        else {clanTagPreview.style.webkitTextStroke='0.85px #111111';clanTagPreview.style.textShadow='0 0 4px rgba(0,0,0,.95)';clanTagPreview.classList.add('rainbow-black-preview');}
       }
       else if(color==='color_wave'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';clanTagPreview.style.backgroundSize='300% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagColorWave 2.4s linear infinite';}
     };
@@ -474,7 +481,7 @@
       const color=clanTagColor.value==='custom'?clanTagHex.value:clanTagColor.value;
       if(!tag.trim())return statusText(clanTagStatus,'Enter a clan tag first.',true);
       const button=clanTagBox.querySelector('.saveClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Saving clan tag override…');
-      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;clanTagOverrideCache.set(player.user_id,{text:tag,style:color.startsWith('#')?'custom_hex':color,color:color.startsWith('#')?color:null});await refreshSearch(player.user_id,'Clan tag override saved.');}
+      try{const {data,error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;const savedOverride=data?.override||{text:tag,style:color.startsWith('#')?'custom_hex':color,color:color.startsWith('#')?color:null};clanTagOverrideCache.set(player.user_id,savedOverride);await refreshSearch(player.user_id,'Clan tag override saved.');}
       catch(error){statusText(clanTagStatus,error.message||'Could not save clan tag override.',true);button.disabled=false;}
     });
     clanTagBox.querySelector('.resetClanTagOverrideBtn').addEventListener('click',async()=>{
