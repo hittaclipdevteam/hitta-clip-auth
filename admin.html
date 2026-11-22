@@ -871,6 +871,45 @@
   $('refreshForcedShopBtn').addEventListener('click',loadForcedShopItems);
   $('forceShopResetBtn').addEventListener('click',async()=>{if(!(await immersiveConfirm('Force a new Item Shop rotation for every player now? The next automatic UTC reset will remain unchanged.')))return;const b=$('forceShopResetBtn');b.disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_reset');if(error)throw error;status('forceShopStatus','Shop reset successfully. New rotation is live for everyone.');}catch(error){status('forceShopStatus',error.message||'Could not reset shop.',true);}finally{b.disabled=false;}});
 
+  // Keep the admin UI synchronized with database changes without requiring a manual reload.
+  let adminLiveChannel = null;
+  let adminAutoRefreshTimer = null;
+  function startAdminLiveUpdates() {
+    if (adminLiveChannel) return;
+    const safeRefreshPlayers = async () => {
+      // Avoid replacing cards while an admin is actively typing or editing a player form.
+      const active = document.activeElement;
+      if (active && $('results').contains(active)) return;
+      if ($('results').querySelector('.cosmetic-edit-form')) return;
+      if (!$('searchInput').value.trim() && !lastSearch) return;
+      try { await refreshSearch(); } catch (error) { status('searchStatus', error.message || 'Live player refresh failed.', true); }
+    };
+    const safeRefreshCatalog = async () => {
+      const active = document.activeElement;
+      if (active && ($('skinResults').contains(active) || $('pickaxeResults').contains(active))) return;
+      if (document.querySelector('.cosmetic-edit-form')) return;
+      try { await loadCatalog(); } catch (_) {}
+    };
+    try {
+      adminLiveChannel = sb.channel('hitta-admin-live-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'player_profiles' }, safeRefreshPlayers)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cosmetic_catalog' }, safeRefreshCatalog)
+        .subscribe();
+    } catch (_) { adminLiveChannel = null; }
+    // Fallback polling in case realtime publication is not enabled for these tables.
+    if (!adminAutoRefreshTimer) adminAutoRefreshTimer = setInterval(() => {
+      if (document.hidden) return;
+      safeRefreshPlayers();
+      safeRefreshCatalog();
+      loadForcedShopItems();
+      loadAnnouncementHistory();
+    }, 30000);
+  }
+  function stopAdminLiveUpdates() {
+    if (adminAutoRefreshTimer) { clearInterval(adminAutoRefreshTimer); adminAutoRefreshTimer = null; }
+    if (adminLiveChannel) { try { sb.removeChannel(adminLiveChannel); } catch (_) {} adminLiveChannel = null; }
+  }
+
   async function enterAdmin(user) {
     const { data, error } = await sb
       .from('admin_users')
@@ -898,6 +937,7 @@
     populateRefundUnlockCosmetics();
     await loadForcedShopItems();
     await loadAnnouncementHistory();
+    startAdminLiveUpdates();
   }
 
   let refundUnlockMatches = [];
@@ -1003,6 +1043,7 @@
       status('deniedStatus', error.message, true);
       return;
     }
+    stopAdminLiveUpdates();
     $('results').replaceChildren();
     hide('adminPanel');
     hide('deniedPanel');
@@ -1021,6 +1062,7 @@
       }), 0);
     }
     if (event === 'SIGNED_OUT') {
+      stopAdminLiveUpdates();
       hide('adminPanel');
       hide('deniedPanel');
       hide('signOutBtn');
