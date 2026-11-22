@@ -482,6 +482,16 @@
           p_action: action
         });
         if (error) throw error;
+        if (action === 'unlock_all') {
+          const owned = Array.isArray(player.owned?.clanTagStyles) ? player.owned.clanTagStyles : ['white'];
+          for (const [id] of clanStyles) {
+            if (id === 'white' || owned.includes(id)) continue;
+            const { error: clanError } = await sb.rpc('hitta_admin_set_clan_tag_style', {
+              p_target_user_id: player.user_id, p_style: id, p_unlocked: true
+            });
+            if (clanError) throw clanError;
+          }
+        }
         await refreshSearch(player.user_id, 'Saved. Player details updated.');
 
       } catch (error) {
