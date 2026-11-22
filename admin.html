@@ -471,34 +471,18 @@
       if (![xp, level, prestige].every(Number.isSafeInteger) || xp < 0 || xp > 999 || level < 1 || level > 1000 || prestige < 0 || prestige > 11) return statusText(editStatus, 'Check XP, level, and prestige values.', true);
       if (await immersiveConfirm(`Set ${player.username || 'this player'} to Prestige ${prestige}, Level ${level}, ${xp} XP?`)) runAction('set_progression', { xp, level, prestige });
     });
-    const ALL_CLAN_TAG_STYLES = [
-      'white', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink',
-      'brown', 'black', 'grey', 'rainbow_white', 'rainbow_black', 'color_wave'
-    ];
     const runBulkAction = async (action) => {
       const buttons = controls.querySelectorAll('button');
       buttons.forEach(button => button.disabled = true);
       statusText(editStatus, 'Applying account action…');
       try {
+        // The database bulk-action RPC now handles cosmetics, clan-tag style
+        // ownership, equipped clan-tag reset, and audit logging atomically.
         const { error } = await sb.rpc('hitta_admin_bulk_player_action', {
           p_target_user_id: player.user_id,
           p_action: action
         });
         if (error) throw error;
-
-        // Bulk cosmetic actions also synchronize every clan-tag style through
-        // the existing secured admin RPC, so the player's style inventory is
-        // included in unlock-all and cleared during account reset.
-        if (action === 'unlock_all' || action === 'remove_all') {
-          for (const style of ALL_CLAN_TAG_STYLES) {
-            const { error: styleError } = await sb.rpc('hitta_admin_set_clan_tag_style', {
-              p_target_user_id: player.user_id,
-              p_style: style,
-              p_unlocked: action === 'unlock_all'
-            });
-            if (styleError) throw styleError;
-          }
-        }
         await refreshSearch(player.user_id, 'Saved. Player details updated.');
       } catch (error) {
         statusText(editStatus, error.message || 'Could not apply this action.', true);
