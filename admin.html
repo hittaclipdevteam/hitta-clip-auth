@@ -125,6 +125,7 @@
       <form id="searchForm" class="row">
         <input id="searchInput" type="search" maxlength="50" placeholder="Enter a player username…" autocomplete="off">
         <button id="searchBtn" type="submit">Search</button>
+        <button id="cancelSearchBtn" class="secondary" type="button">Cancel</button>
       </form>
       <div id="searchStatus" class="status" aria-live="polite"></div>
       <div id="results" class="results"></div>
@@ -194,7 +195,10 @@
         <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button><button id="forceShopResetBtn" type="button">Force shop reset now</button></div></div>
         <form id="forceShopForm" class="cosmetic-form">
           <div class="form-grid">
-            <label class="field">Cosmetic to feature<select id="forceShopCosmetic" required></select></label>
+            <label class="field">Cosmetic to feature
+              <input id="forceShopCosmeticSearch" type="search" maxlength="100" placeholder="Search cosmetics by name, ID, type, or rarity…" autocomplete="off" aria-label="Search cosmetics to force into the shop">
+              <select id="forceShopCosmetic" required></select>
+            </label>
             <label class="field">Days in shop<input id="forceShopDays" type="number" min="1" max="30" value="1" required><span class="dimension">Default is 1 day. Choose 1–30 days.</span></label>
           </div>
           <div class="cosmetic-actions"><button id="forceShopSubmit" type="submit">Force into Item Shop</button></div>
@@ -399,7 +403,7 @@
 
     const editStatus = controls.querySelector('.editStatus');
     const clanStyles = [
-      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave']
+      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black']
     ];
     const clanGrid = controls.querySelector('.clanAdminGrid');
     const renderClanAdmin = () => {
@@ -476,14 +480,13 @@
       buttons.forEach(button => button.disabled = true);
       statusText(editStatus, 'Applying account action…');
       try {
-        // The database bulk-action RPC now handles cosmetics, clan-tag style
-        // ownership, equipped clan-tag reset, and audit logging atomically.
         const { error } = await sb.rpc('hitta_admin_bulk_player_action', {
           p_target_user_id: player.user_id,
           p_action: action
         });
         if (error) throw error;
         await refreshSearch(player.user_id, 'Saved. Player details updated.');
+
       } catch (error) {
         statusText(editStatus, error.message || 'Could not apply this action.', true);
       } finally {
@@ -855,11 +858,22 @@
   }
 
   function populateForceShopSelect(){
-    const select=$('forceShopCosmetic'); if(!select)return; select.replaceChildren();
+    const select=$('forceShopCosmetic'); if(!select)return;
+    const previousValue=select.value;
+    const query=String($('forceShopCosmeticSearch')?.value||'').trim().toLocaleLowerCase();
+    select.replaceChildren();
     const active=catalogItems.filter(x=>x.active!==false);
-    active.forEach(item=>{const opt=document.createElement('option');opt.value=item.id;opt.textContent=`${item.name} (${item.type})`;select.append(opt);});
-    if(!active.length){const opt=document.createElement('option');opt.value='';opt.textContent='No active cosmetics';select.append(opt);}
+    const matches=query?active.filter(item=>[item.name,item.id,item.type,item.rarity,item.description].some(value=>String(value||'').toLocaleLowerCase().includes(query))):active;
+    matches.forEach(item=>{const opt=document.createElement('option');opt.value=item.id;opt.textContent=`${item.name} (${item.type})`;select.append(opt);});
+    // Keep the current selection available even if it does not match the active filter.
+    const previousItem=active.find(item=>String(item.id)===previousValue);
+    if(previousItem&&query&&!matches.some(item=>String(item.id)===previousValue)){
+      const opt=document.createElement('option');opt.value=previousItem.id;opt.textContent=`${previousItem.name} (${previousItem.type}) — current selection`;select.append(opt);
+    }
+    if(!matches.length&&!previousItem){const opt=document.createElement('option');opt.value='';opt.textContent=query?'No matching cosmetics':'No active cosmetics';select.append(opt);}
+    if(previousValue&&select.querySelector(`option[value="${CSS.escape(previousValue)}"]`))select.value=previousValue;
   }
+  $('forceShopCosmeticSearch').addEventListener('input',populateForceShopSelect);
   async function loadForcedShopItems(){
     const host=$('forcedShopList'); if(!host)return; host.replaceChildren();
     try{const {data,error}=await sb.rpc('hitta_get_admin_forced_shop_items');if(error)throw error;
@@ -870,45 +884,6 @@
   $('forceShopForm').addEventListener('submit',async event=>{event.preventDefault();const id=$('forceShopCosmetic').value,days=Number($('forceShopDays').value);if(!id){status('forceShopStatus','Choose a cosmetic first.',true);return;}if(!Number.isInteger(days)||days<1||days>30){status('forceShopStatus','Choose between 1 and 30 days.',true);return;}$('forceShopSubmit').disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_item',{p_cosmetic_id:id,p_days:days});if(error)throw error;status('forceShopStatus','Cosmetic forced into the shop until '+new Date(data.ends_at).toLocaleString()+'.');await loadForcedShopItems();}catch(error){status('forceShopStatus',error.message||'Could not schedule cosmetic.',true);}finally{$('forceShopSubmit').disabled=false;}});
   $('refreshForcedShopBtn').addEventListener('click',loadForcedShopItems);
   $('forceShopResetBtn').addEventListener('click',async()=>{if(!(await immersiveConfirm('Force a new Item Shop rotation for every player now? The next automatic UTC reset will remain unchanged.')))return;const b=$('forceShopResetBtn');b.disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_reset');if(error)throw error;status('forceShopStatus','Shop reset successfully. New rotation is live for everyone.');}catch(error){status('forceShopStatus',error.message||'Could not reset shop.',true);}finally{b.disabled=false;}});
-
-  // Keep the admin UI synchronized with database changes without requiring a manual reload.
-  let adminLiveChannel = null;
-  let adminAutoRefreshTimer = null;
-  function startAdminLiveUpdates() {
-    if (adminLiveChannel) return;
-    const safeRefreshPlayers = async () => {
-      // Avoid replacing cards while an admin is actively typing or editing a player form.
-      const active = document.activeElement;
-      if (active && $('results').contains(active)) return;
-      if ($('results').querySelector('.cosmetic-edit-form')) return;
-      if (!$('searchInput').value.trim() && !lastSearch) return;
-      try { await refreshSearch(); } catch (error) { status('searchStatus', error.message || 'Live player refresh failed.', true); }
-    };
-    const safeRefreshCatalog = async () => {
-      const active = document.activeElement;
-      if (active && ($('skinResults').contains(active) || $('pickaxeResults').contains(active))) return;
-      if (document.querySelector('.cosmetic-edit-form')) return;
-      try { await loadCatalog(); } catch (_) {}
-    };
-    try {
-      adminLiveChannel = sb.channel('hitta-admin-live-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'player_profiles' }, safeRefreshPlayers)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cosmetic_catalog' }, safeRefreshCatalog)
-        .subscribe();
-    } catch (_) { adminLiveChannel = null; }
-    // Fallback polling in case realtime publication is not enabled for these tables.
-    if (!adminAutoRefreshTimer) adminAutoRefreshTimer = setInterval(() => {
-      if (document.hidden) return;
-      safeRefreshPlayers();
-      safeRefreshCatalog();
-      loadForcedShopItems();
-      loadAnnouncementHistory();
-    }, 30000);
-  }
-  function stopAdminLiveUpdates() {
-    if (adminAutoRefreshTimer) { clearInterval(adminAutoRefreshTimer); adminAutoRefreshTimer = null; }
-    if (adminLiveChannel) { try { sb.removeChannel(adminLiveChannel); } catch (_) {} adminLiveChannel = null; }
-  }
 
   async function enterAdmin(user) {
     const { data, error } = await sb
@@ -937,7 +912,6 @@
     populateRefundUnlockCosmetics();
     await loadForcedShopItems();
     await loadAnnouncementHistory();
-    startAdminLiveUpdates();
   }
 
   let refundUnlockMatches = [];
@@ -969,16 +943,12 @@
     finally{button.disabled=false;}
   });
 
-  let announcementLoadVersion=0;
   async function loadAnnouncementHistory(){
-    const host=$('announcementHistory'); if(!host)return;
-    const thisLoad=++announcementLoadVersion;
+    const host=$('announcementHistory'); if(!host)return; host.replaceChildren();
     try{const {data,error}=await sb.rpc('hitta_admin_list_announcements');if(error)throw error;
-      if(thisLoad!==announcementLoadVersion)return; // a newer load is running; ignore this stale result
-      host.replaceChildren();
       if(!Array.isArray(data)||!data.length){host.innerHTML='<div class="empty">No announcements have been sent yet.</div>';return;}
-      data.forEach(a=>{const row=document.createElement('article');row.className='player';const title=document.createElement('div');title.className='username';title.textContent=a.title||'Announcement';const meta=document.createElement('div');meta.className='muted';meta.textContent=new Date(a.created_at).toLocaleString()+' · '+Number(a.recipient_count||0).toLocaleString()+' recipients';const del=document.createElement('button');del.className='danger';del.textContent='Remove announcement';del.addEventListener('click',async()=>{if(!(await immersiveConfirm('Remove this announcement from every player notification inbox?')))return;if(a.id==null||a.id===''){status('broadcastStatus','This announcement has no unique ID, so it was not deleted. The announcement list function needs to return an id column.',true);return;}del.disabled=true;try{const {error}=await sb.rpc('hitta_admin_delete_announcement',{p_announcement_id:a.id});if(error)throw error;await loadAnnouncementHistory();status('broadcastStatus','Announcement removed from player inboxes.');}catch(e){status('broadcastStatus',e.message,true);del.disabled=false;}});row.append(title,meta,del);host.append(row);});
-    }catch(e){if(thisLoad!==announcementLoadVersion)return;host.innerHTML='<div class="empty">Could not load announcement history.</div>';status('broadcastStatus',e.message||'Could not load announcement history.',true);}
+      data.forEach(a=>{const row=document.createElement('article');row.className='player';const title=document.createElement('div');title.className='username';title.textContent=a.title||'Announcement';const meta=document.createElement('div');meta.className='muted';meta.textContent=new Date(a.created_at).toLocaleString()+' · '+Number(a.recipient_count||0).toLocaleString()+' recipients';const del=document.createElement('button');del.className='danger';del.textContent='Remove announcement';del.addEventListener('click',async()=>{if(!(await immersiveConfirm('Remove this announcement from every player notification inbox?')))return;del.disabled=true;try{const {error}=await sb.rpc('hitta_admin_delete_announcement',{p_announcement_id:a.id});if(error)throw error;await loadAnnouncementHistory();status('broadcastStatus','Announcement removed from player inboxes.');}catch(e){status('broadcastStatus',e.message,true);del.disabled=false;}});row.append(title,meta,del);host.append(row);});
+    }catch(e){host.innerHTML='<div class="empty">Could not load announcement history.</div>';status('broadcastStatus',e.message||'Could not load announcement history.',true);}
   }
   $('broadcastForm').addEventListener('submit', async (event) => {
     event.preventDefault();const title=$('broadcastTitle').value.trim(),message=$('broadcastMessage').value.trim(),coins=Number($('broadcastCoins').value),file=$('broadcastImage').files[0];
@@ -988,10 +958,12 @@
     if(!(await immersiveConfirm(`Send this announcement to every player?${coins>0?'\n\nThis will also grant '+coins.toLocaleString()+' coins to EACH account.':''}`)))return;
     $('broadcastSendBtn').disabled=true;status('broadcastStatus','Sending announcement and applying compensation…');
     try{let imageUrl=null;if(file){const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const path='announcements/'+crypto.randomUUID()+'.'+ext;const {error:upErr}=await sb.storage.from('hitta-cosmetics').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(upErr)throw upErr;imageUrl=sb.storage.from('hitta-cosmetics').getPublicUrl(path).data.publicUrl;}
-      const awardText=coins>0?'You have been awarded '+coins.toLocaleString()+' coin'+(coins===1?'':'s')+'!':'';const fullMessage=awardText?awardText+'\n\n'+message:message;const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:fullMessage,p_coin_grant:coins,p_image_url:imageUrl});if(error)throw error;
+      const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:message,p_coin_grant:coins,p_image_url:imageUrl});if(error)throw error;
       status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each.`);$('broadcastForm').reset();$('broadcastCoins').value='0';await loadAnnouncementHistory();
     }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}finally{$('broadcastSendBtn').disabled=false;}
   });
+  loadAnnouncementHistory();
+
 
   async function initialize() {
     status('loginStatus', 'Checking sign-in…');
@@ -1036,6 +1008,13 @@
       $('searchBtn').disabled = false;
     }
   });
+  $('cancelSearchBtn').addEventListener('click', () => {
+    $('searchInput').value = '';
+    lastSearch = '';
+    $('results').replaceChildren();
+    status('searchStatus', 'Player search cleared.');
+    $('searchInput').focus();
+  });
 
   async function signOut() {
     const { error } = await sb.auth.signOut();
@@ -1043,7 +1022,6 @@
       status('deniedStatus', error.message, true);
       return;
     }
-    stopAdminLiveUpdates();
     $('results').replaceChildren();
     hide('adminPanel');
     hide('deniedPanel');
@@ -1062,7 +1040,6 @@
       }), 0);
     }
     if (event === 'SIGNED_OUT') {
-      stopAdminLiveUpdates();
       hide('adminPanel');
       hide('deniedPanel');
       hide('signOutBtn');
