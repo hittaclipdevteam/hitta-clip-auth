@@ -125,7 +125,6 @@
       <form id="searchForm" class="row">
         <input id="searchInput" type="search" maxlength="50" placeholder="Enter a player username…" autocomplete="off">
         <button id="searchBtn" type="submit">Search</button>
-        <button id="clearSearchBtn" type="button" class="secondary hidden">Clear</button>
       </form>
       <div id="searchStatus" class="status" aria-live="polite"></div>
       <div id="results" class="results"></div>
@@ -472,6 +471,10 @@
       if (![xp, level, prestige].every(Number.isSafeInteger) || xp < 0 || xp > 999 || level < 1 || level > 1000 || prestige < 0 || prestige > 11) return statusText(editStatus, 'Check XP, level, and prestige values.', true);
       if (await immersiveConfirm(`Set ${player.username || 'this player'} to Prestige ${prestige}, Level ${level}, ${xp} XP?`)) runAction('set_progression', { xp, level, prestige });
     });
+    const ALL_CLAN_TAG_STYLES = [
+      'white', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink',
+      'brown', 'black', 'grey', 'rainbow_white', 'rainbow_black', 'color_wave'
+    ];
     const runBulkAction = async (action) => {
       const buttons = controls.querySelectorAll('button');
       buttons.forEach(button => button.disabled = true);
@@ -482,29 +485,21 @@
           p_action: action
         });
         if (error) throw error;
-        if (action === 'unlock_all') {
-          const owned = Array.isArray(player.owned?.clanTagStyles) ? player.owned.clanTagStyles : ['white'];
-          for (const [id] of clanStyles) {
-            if (id === 'white' || owned.includes(id)) continue;
-            const { error: clanError } = await sb.rpc('hitta_admin_set_clan_tag_style', {
-              p_target_user_id: player.user_id, p_style: id, p_unlocked: true
-            });
-            if (clanError) throw clanError;
-          }
-        }
 
-        if (action === 'remove_all') {
-          const owned = Array.isArray(player.owned?.clanTagStyles) ? player.owned.clanTagStyles : ['white'];
-          for (const [id] of clanStyles) {
-            if (id === 'white' || !owned.includes(id)) continue;
-            const { error: clanError } = await sb.rpc('hitta_admin_set_clan_tag_style', {
-              p_target_user_id: player.user_id, p_style: id, p_unlocked: false
+        // Bulk cosmetic actions also synchronize every clan-tag style through
+        // the existing secured admin RPC, so the player's style inventory is
+        // included in unlock-all and cleared during account reset.
+        if (action === 'unlock_all' || action === 'remove_all') {
+          for (const style of ALL_CLAN_TAG_STYLES) {
+            const { error: styleError } = await sb.rpc('hitta_admin_set_clan_tag_style', {
+              p_target_user_id: player.user_id,
+              p_style: style,
+              p_unlocked: action === 'unlock_all'
             });
-            if (clanError) throw clanError;
+            if (styleError) throw styleError;
           }
         }
         await refreshSearch(player.user_id, 'Saved. Player details updated.');
-
       } catch (error) {
         statusText(editStatus, error.message || 'Could not apply this action.', true);
       } finally {
@@ -552,7 +547,6 @@
     }
 
     status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
-    $('clearSearchBtn').classList.remove('hidden');
     if (updatedCard && successMessage) {
       const message = updatedCard.querySelector('.editStatus');
       if (message) statusText(message, successMessage);
@@ -1018,16 +1012,6 @@
       $('searchBtn').disabled = false;
     }
   });
-
-  function clearSearch() {
-  lastSearch = '';
-  $('searchInput').value = '';
-  $('results').replaceChildren();
-  $('clearSearchBtn').classList.add('hidden');
-  status('searchStatus', 'Search cleared. Search for a player by username.');
-}
-$('clearSearchBtn').addEventListener('click', clearSearch);
-$('searchInput').addEventListener('keydown', e => { if (e.key === 'Escape') clearSearch(); });
 
   async function signOut() {
     const { error } = await sb.auth.signOut();
