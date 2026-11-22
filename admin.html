@@ -371,9 +371,9 @@
           <label>Clan tag text<input class="adminClanTagInput" type="text" value="" placeholder="Enter clan tag (no character limit)"></label>
           <label>Clan tag color<select class="adminClanTagColor"></select></label>
         </div>
-        <div class="clan-override-color-row" style="margin-top:10px">
+        <div class="clan-override-color-row" style="margin-top:10px;display:none">
           <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px">Custom HEX color<input class="adminClanTagHex" type="color" value="#ffffff" title="Custom color"></label>
-          <span class="muted">Choose a preset or custom color.</span>
+          <span class="muted">Choose a custom color.</span>
         </div>
         <div class="clan-override-preview"><span>Preview:</span><span class="tag-preview adminClanTagPreview">CLAN</span></div>
         <div class="actions"><button type="button" class="saveClanTagOverrideBtn">Save clan tag</button><button type="button" class="resetClanTagOverrideBtn secondary">Reset override</button></div>
@@ -429,6 +429,7 @@
     const clanTagInput = clanTagBox.querySelector('.adminClanTagInput');
     const clanTagColor = clanTagBox.querySelector('.adminClanTagColor');
     const clanTagHex = clanTagBox.querySelector('.adminClanTagHex');
+    const clanTagHexRow = clanTagBox.querySelector('.clan-override-color-row');
     const clanTagPreview = clanTagBox.querySelector('.adminClanTagPreview');
     const clanTagStatus = clanTagBox.querySelector('.clanTagOverrideStatus');
     const clanTagColorMap = {white:'#ffffff',red:'#ff3b3b',orange:'#ff9a24',yellow:'#ffe600',green:'#35d05b',blue:'#24a8ff',purple:'#9b59ff',pink:'#ff66c4',brown:'#9a633f',black:'#171717',grey:'#9aa5b5',rainbow_white:'#ffffff',rainbow_black:'#171717',color_wave:'#ffffff'};
@@ -447,13 +448,17 @@
       else if(color==='color_wave'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';clanTagPreview.style.backgroundSize='300% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagColorWave 2.4s linear infinite';}
       else {clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';}
     };
-    clanTagColor.addEventListener('change',()=>{clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';refreshClanTagPreview();});
-    clanTagHex.addEventListener('input',()=>{clanTagColor.value='custom';refreshClanTagPreview();});
+    const updateCustomHexVisibility=()=>{clanTagHexRow.style.display=clanTagColor.value==='custom'?'flex':'none';};
+    clanTagColor.addEventListener('change',()=>{
+      if(clanTagColor.value!=='custom') clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';
+      updateCustomHexVisibility();
+      refreshClanTagPreview();
+    });
+    clanTagHex.addEventListener('input',()=>{clanTagColor.value='custom';updateCustomHexVisibility();refreshClanTagPreview();});
     clanTagInput.addEventListener('input',refreshClanTagPreview);
-    // Custom HEX is represented as an additional selectable option when chosen.
     clanTagHex.addEventListener('change',refreshClanTagPreview);
-    clanTagColor.addEventListener('change',()=>{if(clanTagColor.value!=='custom')clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';});
     const customOption=document.createElement('option');customOption.value='custom';customOption.textContent='Custom HEX';clanTagColor.append(customOption);
+    updateCustomHexVisibility();
     refreshClanTagPreview();
     clanTagBox.querySelector('.saveClanTagOverrideBtn').addEventListener('click',async()=>{
       const tag=clanTagInput.value;
