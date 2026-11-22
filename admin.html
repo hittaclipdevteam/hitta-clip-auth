@@ -943,7 +943,7 @@
     if(!(await immersiveConfirm(`Send this announcement to every player?${coins>0?'\n\nThis will also grant '+coins.toLocaleString()+' coins to EACH account.':''}`)))return;
     $('broadcastSendBtn').disabled=true;status('broadcastStatus','Sending announcement and applying compensation…');
     try{let imageUrl=null;if(file){const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const path='announcements/'+crypto.randomUUID()+'.'+ext;const {error:upErr}=await sb.storage.from('hitta-cosmetics').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(upErr)throw upErr;imageUrl=sb.storage.from('hitta-cosmetics').getPublicUrl(path).data.publicUrl;}
-      const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:message,p_coin_grant:coins,p_image_url:imageUrl});if(error)throw error;
+      const awardText=coins>0?'You have been awarded '+coins.toLocaleString()+' coin'+(coins===1?'':'s')+'!':'';const fullMessage=awardText?awardText+'\n\n'+message:message;const {data,error}=await sb.rpc('hitta_admin_broadcast_announcement',{p_title:title,p_message:fullMessage,p_coin_grant:coins,p_image_url:imageUrl});if(error)throw error;
       status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each.`);$('broadcastForm').reset();$('broadcastCoins').value='0';await loadAnnouncementHistory();
     }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}finally{$('broadcastSendBtn').disabled=false;}
   });
