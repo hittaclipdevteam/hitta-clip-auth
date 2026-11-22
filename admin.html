@@ -435,10 +435,12 @@
     const clanTagColorMap = {white:'#ffffff',red:'#ff3b3b',orange:'#ff9a24',yellow:'#ffe600',green:'#35d05b',blue:'#24a8ff',purple:'#9b59ff',pink:'#ff66c4',brown:'#9a633f',black:'#171717',grey:'#9aa5b5',rainbow_white:'#ffffff',rainbow_black:'#171717',color_wave:'#ffffff'};
     clanStyles.forEach(([id,label])=>{const option=document.createElement('option');option.value=id;option.textContent=label;clanTagColor.append(option);});
     // Load any existing clan tag/color values returned in the player record.
-    clanTagInput.value = safeText(player.clanTag ?? player.clan_tag ?? player.profile?.clanTag ?? player.profile?.clan_tag ?? '');
-    const existingClanColor = safeText(player.clanTagColor ?? player.clan_tag_color ?? player.profile?.clanTagColor ?? player.profile?.clan_tag_color ?? 'white');
+    const existingOverride = clanTagOverrideCache.has(player.user_id) ? clanTagOverrideCache.get(player.user_id) : (player.admin_clan_tag_override ?? player.adminClanTagOverride ?? player.profile?.admin_clan_tag_override ?? player.profile?.adminClanTagOverride ?? null);
+    clanTagInput.value = safeText(existingOverride?.text ?? player.clanTag ?? player.clan_tag ?? player.profile?.clanTag ?? player.profile?.clan_tag ?? '');
+    const existingClanColor = safeText(existingOverride?.style === 'custom_hex' ? 'custom' : (existingOverride?.style ?? player.clanTagColor ?? player.clan_tag_color ?? player.profile?.clanTagColor ?? player.profile?.clan_tag_color ?? 'white'));
     if(clanStyles.some(([id])=>id===existingClanColor)) clanTagColor.value=existingClanColor;
-    else clanTagColor.value='white';
+    else clanTagColor.value=existingClanColor==='custom'?'custom':'white';
+    if(existingOverride?.style==='custom_hex' && /^#[0-9a-f]{6}$/i.test(existingOverride.color||'')) clanTagHex.value=existingOverride.color;
     const refreshClanTagPreview=()=>{
       const color=clanTagColor.value;
       clanTagPreview.classList.remove('rainbow-white-preview','rainbow-black-preview');
@@ -472,13 +474,13 @@
       const color=clanTagColor.value==='custom'?clanTagHex.value:clanTagColor.value;
       if(!tag.trim())return statusText(clanTagStatus,'Enter a clan tag first.',true);
       const button=clanTagBox.querySelector('.saveClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Saving clan tag override…');
-      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;await refreshSearch(player.user_id,'Clan tag override saved.');}
+      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;clanTagOverrideCache.set(player.user_id,{text:tag,style:color.startsWith('#')?'custom_hex':color,color:color.startsWith('#')?color:null});await refreshSearch(player.user_id,'Clan tag override saved.');}
       catch(error){statusText(clanTagStatus,error.message||'Could not save clan tag override.',true);button.disabled=false;}
     });
     clanTagBox.querySelector('.resetClanTagOverrideBtn').addEventListener('click',async()=>{
       if(!(await immersiveConfirm(`Reset the admin clan tag override for ${player.username||'this player'}?`)))return;
       const button=clanTagBox.querySelector('.resetClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Resetting clan tag override…');
-      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:null,p_color:null});if(error)throw error;await refreshSearch(player.user_id,'Clan tag override reset.');}
+      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:null,p_color:null});if(error)throw error;clanTagOverrideCache.set(player.user_id,null);await refreshSearch(player.user_id,'Clan tag override reset.');}
       catch(error){statusText(clanTagStatus,error.message||'Could not reset clan tag override.',true);button.disabled=false;}
     });
     const clanGrid = controls.querySelector('.clanAdminGrid');
@@ -589,10 +591,19 @@
 
   let catalogItems = [];
   let lastSearch = '';
+  const clanTagOverrideCache = new Map();
 
   async function refreshSearch(updatedPlayerId = null, successMessage = '') {
     const { data, error } = await sb.rpc('hitta_admin_search_players', { p_search: lastSearch });
     if (error) throw error;
+    // Fetch the override separately so the editor remains populated even if the
+    // existing search RPC predates the override column.
+    if (data && data.length) {
+      try {
+        const overrideResults = await Promise.all(data.map(player => sb.rpc('hitta_admin_get_clan_tag_override', { p_target_user_id: player.user_id })));
+        overrideResults.forEach((result, index) => { if (!result.error) data[index].admin_clan_tag_override = result.data; });
+      } catch (_) { /* fallback to values returned by the admin search RPC/cache */ }
+    }
 
     $('results').replaceChildren();
     let updatedCard = null;
