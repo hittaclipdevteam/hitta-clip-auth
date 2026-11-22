@@ -224,6 +224,7 @@
         <div id="refundUnlockStatus" class="status" aria-live="polite"></div>
       </section>
 
+      <section class="cosmetic-manager" id="bannedManager"><div class="topline"><div><h2>Banned players</h2><div class="sub">Active bans. They update automatically.</div></div></div><div id="bannedStatus" class="status" aria-live="polite"></div><div id="bannedList" class="catalog-grid"></div></section>
       <section class="cosmetic-manager" id="broadcastManager">
         <div class="topline"><div><h2>Notifications, announcements & compensation</h2><div class="sub">Send an in-game announcement or patch notes to every player account. Optionally grant coins to every account at the same time.</div></div></div>
         <form id="broadcastForm" class="cosmetic-form">
@@ -356,10 +357,11 @@
       <div class="editbox">
         <strong>Manage cosmetics</strong>
         <div class="editgrid">
-          <label>Cosmetic type<select class="itemType"><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option></select></label>
+          <label>Cosmetic type<select class="itemType"><option value="all">Skins + pickaxes</option><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option></select></label>
           <label>Search cosmetic<input class="itemSearch" type="search" maxlength="100" placeholder="Search skins or pickaxes by name, ID, or rarity…" autocomplete="off"></label>
           <label>Cosmetic<select class="itemId"></select></label>
         </div>
+        <div class="muted itemMatchCount"></div>
         <div class="actions">
           <button type="button" class="unlockBtn">Unlock cosmetic</button>
           <button type="button" class="removeItemBtn danger">Remove cosmetic</button>
@@ -368,6 +370,7 @@
       <div class="editbox clan-tag-override-box">
         <strong>Manage clan tag (admin override)</strong>
         <div class="sub">Set a player's clan tag and color directly. Admin overrides bypass the normal clan-tag character limit and color unlock requirements.</div>
+        <div class="clan-override-preview"><span>Currently in game:</span><span class="adminClanCurrent"></span><span class="muted adminClanCurrentNote"></span></div>
         <div class="editgrid">
           <label>Clan tag text<input class="adminClanTagInput" type="text" value="" placeholder="Enter clan tag (no character limit)"></label>
           <label>Clan tag color<select class="adminClanTagColor"></select></label>
@@ -408,21 +411,16 @@
     const typeSelect = controls.querySelector('.itemType');
     const itemSelect = controls.querySelector('.itemId');
     const itemSearch = controls.querySelector('.itemSearch');
+    const itemCount = controls.querySelector('.itemMatchCount');
     function fillItems() {
-      const type = typeSelect.value;
-      const query = itemSearch.value.trim().toLowerCase();
-      const items = catalogItems.filter(item => item.type === type && (!query || [item.name,item.id,item.rarity,item.description].some(value => String(value||'').toLowerCase().includes(query))));
+      const type = typeSelect.value, q = itemSearch.value.trim().toLowerCase();
+      const items = catalogItems.filter(i => (i.type==='skin'||i.type==='pickaxe') && (type==='all'||i.type===type) && (!q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v||'').toLowerCase().includes(q))));
       itemSelect.replaceChildren();
-      items.forEach(item => {
-        const option = document.createElement('option');
-        option.value = item.id;
-        option.textContent = `${item.name} (${item.id})`;
-        itemSelect.append(option);
-      });
-      if (!items.length) {
-        const empty = document.createElement('option'); empty.disabled = true; empty.textContent = 'No matching cosmetics'; itemSelect.append(empty);
-      }
+      items.forEach(i => { const o=document.createElement('option'); o.value=i.type+':'+i.id; o.textContent=`${i.name} · ${i.type} · ${i.rarity}${i.active===false?' (disabled)':''}`; itemSelect.append(o); });
+      if (!items.length) { const o=document.createElement('option'); o.value=''; o.disabled=true; o.selected=true; o.textContent='No matching cosmetics'; itemSelect.append(o); }
+      itemCount.textContent = `${items.length} match${items.length===1?'':'es'}`;
     }
+    const pickedItem = () => { const [t,...r]=itemSelect.value.split(':'); const id=r.join(':'); return { type:t, id, item:catalogItems.find(x=>x.type===t&&x.id===id) }; };
     typeSelect.addEventListener('change', fillItems);
     itemSearch.addEventListener('input', fillItems);
     fillItems();
@@ -431,63 +429,83 @@
     const clanStyles = [
       ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave']
     ];
-    if(!document.getElementById('hittaClanTagColorWaveStyle')){const waveStyle=document.createElement('style');waveStyle.id='hittaClanTagColorWaveStyle';waveStyle.textContent='@keyframes hittaClanTagColorWave{0%{background-position:0% 50%}100%{background-position:300% 50%}} @keyframes hittaClanTagRainbow{0%{background-position:0% 50%}100%{background-position:400% 50%}} .adminClanTagPreview{display:inline-block;font-weight:800;white-space:pre;background-size:400% 100%;background-repeat:repeat;animation:hittaClanTagRainbow 2.8s linear infinite;-webkit-background-clip:text;background-clip:text}';document.head.append(waveStyle);}
-    const clanTagBox = controls.querySelector('.clan-tag-override-box');
-    const clanTagInput = clanTagBox.querySelector('.adminClanTagInput');
-    const clanTagColor = clanTagBox.querySelector('.adminClanTagColor');
-    const clanTagHex = clanTagBox.querySelector('.adminClanTagHex');
-    const clanTagHexRow = clanTagBox.querySelector('.clan-override-color-row');
-    const clanTagPreview = clanTagBox.querySelector('.adminClanTagPreview');
-    const clanTagStatus = clanTagBox.querySelector('.clanTagOverrideStatus');
-    const clanTagColorMap = {white:'#ffffff',red:'#ff3b3b',orange:'#ff9a24',yellow:'#ffe600',green:'#35d05b',blue:'#24a8ff',purple:'#9b59ff',pink:'#ff66c4',brown:'#9a633f',black:'#171717',grey:'#9aa5b5',rainbow_white:'#ffffff',rainbow_black:'#171717',color_wave:'#ffffff'};
-    clanStyles.forEach(([id,label])=>{const option=document.createElement('option');option.value=id;option.textContent=label;clanTagColor.append(option);});
-    // Load any existing clan tag/color values returned in the player record.
-    const existingOverride = clanTagOverrideCache.has(player.user_id) ? clanTagOverrideCache.get(player.user_id) : (player.admin_clan_tag_override ?? player.adminClanTagOverride ?? player.profile?.admin_clan_tag_override ?? player.profile?.adminClanTagOverride ?? null);
-    clanTagInput.value = safeText(existingOverride?.text ?? player.clanTag ?? player.clan_tag ?? player.profile?.clanTag ?? player.profile?.clan_tag ?? '');
-    const existingClanColor = safeText(existingOverride?.style === 'custom_hex' ? 'custom' : (existingOverride?.style ?? player.clanTagColor ?? player.clan_tag_color ?? player.profile?.clanTagColor ?? player.profile?.clan_tag_color ?? 'white'));
-    if(clanStyles.some(([id])=>id===existingClanColor)) clanTagColor.value=existingClanColor;
-    else clanTagColor.value=existingClanColor==='custom'?'custom':'white';
-    if(existingOverride?.style==='custom_hex' && /^#[0-9a-f]{6}$/i.test(existingOverride.color||'')) clanTagHex.value=existingOverride.color;
-    const refreshClanTagPreview=()=>{
-      const color=clanTagColor.value;
-      clanTagPreview.classList.remove('rainbow-white-preview','rainbow-black-preview');
-      clanTagPreview.style.animation='';
-      clanTagPreview.textContent='['+(clanTagInput.value||'CLAN')+']';
-      clanTagPreview.style.color=color==='custom'?clanTagHex.value:(clanTagColorMap[color]||'#ffffff');
-      clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';
-      clanTagPreview.style.webkitTextStroke='';clanTagPreview.style.webkitTextFillColor='';clanTagPreview.style.textShadow='';
-      if(color==='rainbow_white'||color==='rainbow_black'){
-        clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';
-        clanTagPreview.style.backgroundSize='400% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.webkitTextFillColor='transparent';clanTagPreview.style.display='inline-block';clanTagPreview.style.animation='hittaClanTagRainbow 2.8s linear infinite';
-        if(color==='rainbow_white'){clanTagPreview.style.webkitTextStroke='0.75px #ffffff';clanTagPreview.style.textShadow='0 0 4px rgba(255,255,255,.95)';clanTagPreview.classList.add('rainbow-white-preview');}
-        else {clanTagPreview.style.webkitTextStroke='0.85px #111111';clanTagPreview.style.textShadow='0 0 4px rgba(0,0,0,.95)';clanTagPreview.classList.add('rainbow-black-preview');}
-      }
-      else if(color==='color_wave'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';clanTagPreview.style.backgroundSize='300% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagColorWave 2.4s linear infinite';}
+    if(!document.getElementById('hittaGameClanCss')){const st=document.createElement('style');st.id='hittaGameClanCss';st.textContent=`
+    @keyframes hittaRainbowFlow{0%{background-position:0% 50%}100%{background-position:400% 50%}}
+    @keyframes hittaSmoothRainbow{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
+    .clanRainbowGlow{animation:hittaSmoothRainbow 4s linear infinite;text-shadow:0 0 3px #fff,0 0 7px #ff3030,0 0 13px #ff8c00,0 0 19px #00e5ff,0 0 26px #b000ff}
+    .clanColorWave{background:linear-gradient(90deg,#ff4545,#ffb347,#fff34d,#4be078,#4aa3ff,#b58aff,#ff82c8,#ff4545);background-size:400% 100%;background-repeat:repeat;color:transparent!important;-webkit-text-fill-color:transparent;background-clip:text;-webkit-background-clip:text;animation:hittaRainbowFlow 8s linear infinite;text-shadow:none!important;filter:drop-shadow(0 0 4px rgba(255,255,255,.35)) drop-shadow(0 0 8px rgba(255,130,200,.3))}
+    .clan-black{color:#000!important;text-shadow:none!important}
+    .clan-black-rb{color:#000!important}
+    .clan-stroke{-webkit-text-stroke:.045em currentColor;paint-order:stroke fill}
+    .clanColorWave.clan-stroke{-webkit-text-stroke:.045em transparent}
+    .clan-override-preview .tag-preview,.adminClanCurrent{display:inline-block;font-weight:800;white-space:pre}`;document.head.append(st);}
+    const GAME_CLAN_COLORS={white:'#ffffff',red:'#ff4545',orange:'#ff9638',yellow:'#ffe34d',green:'#4be078',blue:'#4aa3ff',purple:'#b58aff',pink:'#ff82c8',brown:'#a87950',black:'#000000',grey:'#aeb5c0',rainbow_white:'#ffffff',rainbow_black:'#000000',color_wave:'#ffffff'};
+    const paintClanTag=(el,label,style,hex)=>{
+      el.classList.remove('clanRainbowGlow','clanColorWave','clan-black','clan-black-rb');el.classList.add('clan-stroke');
+      el.textContent=label;
+      el.style.color=style==='custom_hex'||style==='custom'?(/^#[0-9a-f]{6}$/i.test(hex||'')?hex:'#ffffff'):(GAME_CLAN_COLORS[style]||'#ffffff');
+      if(style==='color_wave'){el.classList.add('clanColorWave');el.style.color='';}
+      else if(style==='rainbow_white'||style==='rainbow_black'){el.classList.add('clanRainbowGlow');if(style==='rainbow_black')el.classList.add('clan-black-rb');}
+      else if(style==='black')el.classList.add('clan-black');
     };
-    const updateCustomHexVisibility=()=>{clanTagHexRow.style.display=clanTagColor.value==='custom'?'flex':'none';};
-    clanTagColor.addEventListener('change',()=>{
-      if(clanTagColor.value!=='custom') clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';
-      updateCustomHexVisibility();
-      refreshClanTagPreview();
-    });
-    clanTagHex.addEventListener('input',()=>{clanTagColor.value='custom';updateCustomHexVisibility();refreshClanTagPreview();});
-    clanTagInput.addEventListener('input',refreshClanTagPreview);
-    clanTagHex.addEventListener('change',refreshClanTagPreview);
+    const clanTagBox=controls.querySelector('.clan-tag-override-box');
+    const clanTagInput=clanTagBox.querySelector('.adminClanTagInput'),clanTagColor=clanTagBox.querySelector('.adminClanTagColor'),clanTagHex=clanTagBox.querySelector('.adminClanTagHex'),clanTagHexRow=clanTagBox.querySelector('.clan-override-color-row'),clanTagPreview=clanTagBox.querySelector('.adminClanTagPreview'),clanTagStatus=clanTagBox.querySelector('.clanTagOverrideStatus'),currentEl=clanTagBox.querySelector('.adminClanCurrent'),currentNote=clanTagBox.querySelector('.adminClanCurrentNote');
+    clanStyles.forEach(([id,label])=>{const o=document.createElement('option');o.value=id;o.textContent=label;clanTagColor.append(o);});
     const customOption=document.createElement('option');customOption.value='custom';customOption.textContent='Custom HEX';clanTagColor.append(customOption);
-    updateCustomHexVisibility();
-    refreshClanTagPreview();
+    const showCurrent=(override,mine)=>{
+      const o=override&&typeof override==='object'&&String(override.text||'').trim()?override:null,t=o||mine||{};
+      paintClanTag(currentEl,t.text?'['+t.text+']':'(no clan tag)',t.text?(t.style||'white'):'white',t.color);
+      if(!t.text)currentEl.style.color='#9aa5b5';
+      currentNote.textContent=o?'admin override':(t.text?"player's own tag":'');
+    };
+    const refreshPreview=()=>{
+      clanTagHexRow.style.display=clanTagColor.value==='custom'?'flex':'none';
+      paintClanTag(clanTagPreview,'['+(clanTagInput.value||'CLAN')+']',clanTagColor.value,clanTagHex.value);
+    };
+    let dirty=false;
+    const mine0=player.equipped?.clanTag||player.clanTag||null;
+    const over0=player.admin_clan_tag_override!==undefined?player.admin_clan_tag_override:(clanTagOverrideCache.get(player.user_id)??null);
+    showCurrent(over0,mine0);
+    const seed=over0&&over0.text?over0:(mine0||{});
+    clanTagInput.value=safeText(seed.text||'');
+    clanTagColor.value=seed.style==='custom_hex'?'custom':(clanStyles.some(([id])=>id===seed.style)?seed.style:'white');
+    if(seed.style==='custom_hex'&&/^#[0-9a-f]{6}$/i.test(seed.color||''))clanTagHex.value=seed.color;
+    refreshPreview();
+    clanTagColor.addEventListener('change',()=>{dirty=true;if(clanTagColor.value!=='custom')clanTagHex.value=GAME_CLAN_COLORS[clanTagColor.value]||'#ffffff';refreshPreview();});
+    clanTagHex.addEventListener('input',()=>{dirty=true;clanTagColor.value='custom';refreshPreview();});
+    clanTagInput.addEventListener('input',()=>{dirty=true;refreshPreview();});
+    // Live view: re-check what the player currently shows in game every few seconds (see the poll at the bottom).
+    let firstLive=true;
+    liveClanUpdaters.set(player.user_id,async()=>{
+      if(!currentEl.isConnected){liveClanUpdaters.delete(player.user_id);return;}
+      let override,mine;
+      try{const r=await sb.rpc('hitta_admin_get_clan_tag_override',{p_target_user_id:player.user_id});if(!r.error)override=r.data;}catch(_){}
+      try{const r=await sb.from('player_profiles').select('equipped').eq('user_id',player.user_id).maybeSingle();if(!r.error&&r.data)mine=r.data.equipped?.clanTag;}catch(_){}
+      showCurrent(override!==undefined?override:over0,mine!==undefined?mine:mine0);
+      if(firstLive&&!dirty&&(override!==undefined||mine!==undefined)){
+        const eff=override&&override.text?override:(mine||{});
+        clanTagInput.value=safeText(eff.text||'');
+        clanTagColor.value=eff.style==='custom_hex'?'custom':(clanStyles.some(([id])=>id===eff.style)?eff.style:'white');
+        if(eff.style==='custom_hex'&&/^#[0-9a-f]{6}$/i.test(eff.color||''))clanTagHex.value=eff.color;
+        refreshPreview();
+      }
+      firstLive=false;
+    });
+    liveClanUpdaters.get(player.user_id)();
     clanTagBox.querySelector('.saveClanTagOverrideBtn').addEventListener('click',async()=>{
-      const tag=clanTagInput.value;
-      const color=clanTagColor.value==='custom'?clanTagHex.value:clanTagColor.value;
+      const tag=clanTagInput.value,color=clanTagColor.value==='custom'?clanTagHex.value:clanTagColor.value;
       if(!tag.trim())return statusText(clanTagStatus,'Enter a clan tag first.',true);
       const button=clanTagBox.querySelector('.saveClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Saving clan tag override…');
-      try{const {data,error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;const savedOverride=data?.override||{text:tag,style:color.startsWith('#')?'custom_hex':color,color:color.startsWith('#')?color:null};clanTagOverrideCache.set(player.user_id,savedOverride);await refreshSearch(player.user_id,'Clan tag override saved.');}
+      try{const {data,error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;
+        clanTagOverrideCache.set(player.user_id,data?.override||{text:tag,style:color.startsWith('#')?'custom_hex':color,color:color.startsWith('#')?color:null});
+        await refreshSearch(player.user_id,'Clan tag saved. It updates in the game within a few seconds, no refresh needed.');}
       catch(error){statusText(clanTagStatus,error.message||'Could not save clan tag override.',true);button.disabled=false;}
     });
     clanTagBox.querySelector('.resetClanTagOverrideBtn').addEventListener('click',async()=>{
       if(!(await immersiveConfirm(`Reset the admin clan tag override for ${player.username||'this player'}?`)))return;
       const button=clanTagBox.querySelector('.resetClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Resetting clan tag override…');
-      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:null,p_color:null});if(error)throw error;clanTagOverrideCache.set(player.user_id,null);await refreshSearch(player.user_id,'Clan tag override reset.');}
+      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:null,p_color:null});if(error)throw error;
+        clanTagOverrideCache.set(player.user_id,null);await refreshSearch(player.user_id,'Clan tag override reset.');}
       catch(error){statusText(clanTagStatus,error.message||'Could not reset clan tag override.',true);button.disabled=false;}
     });
     const clanGrid = controls.querySelector('.clanAdminGrid');
@@ -544,14 +562,12 @@
       if (await immersiveConfirm(`Remove ${amount} coins from ${player.username || 'this player'}?`)) runAction('remove_coins', { amount });
     });
     controls.querySelector('.unlockBtn').addEventListener('click', async () => {
-      if (!itemSelect.value) return statusText(editStatus, 'Choose a cosmetic first.', true);
-      const item = catalogItems.find(x => x.type === typeSelect.value && x.id === itemSelect.value);
-      if (await immersiveConfirm(`Unlock ${item?.name || itemSelect.value} for ${player.username || 'this player'}?`)) runAction('unlock_cosmetic', { itemType: typeSelect.value, itemId: itemSelect.value });
+      const {type,id,item}=pickedItem(); if(!id) return statusText(editStatus,'Choose a cosmetic first.',true);
+      if (await immersiveConfirm(`Unlock ${item?.name||id} for ${player.username||'this player'}?`)) runAction('unlock_cosmetic',{itemType:type,itemId:id});
     });
     controls.querySelector('.removeItemBtn').addEventListener('click', async () => {
-      if (!itemSelect.value) return statusText(editStatus, 'Choose a cosmetic first.', true);
-      const item = catalogItems.find(x => x.type === typeSelect.value && x.id === itemSelect.value);
-      if (await immersiveConfirm(`Remove ${item?.name || itemSelect.value} from ${player.username || 'this player'}?`)) runAction('remove_cosmetic', { itemType: typeSelect.value, itemId: itemSelect.value });
+      const {type,id,item}=pickedItem(); if(!id) return statusText(editStatus,'Choose a cosmetic first.',true);
+      if (await immersiveConfirm(`Remove ${item?.name||id} from ${player.username||'this player'}?`)) runAction('remove_cosmetic',{itemType:type,itemId:id});
     });
     controls.querySelector('.saveProgressBtn').addEventListener('click', async () => {
       const xp = Number(controls.querySelector('.xpValue').value);
@@ -588,6 +604,44 @@
       if (typed === 'RESET ACCOUNT') runBulkAction('remove_all');
       else statusText(editStatus, 'Account reset cancelled.');
     });
+    const banBox=document.createElement('section');banBox.className='editbox';
+    banBox.innerHTML=`<strong>Ban player</strong>
+    <div class="sub banCurrent">Checking ban status…</div>
+    <div class="editgrid">
+      <label>Duration<select class="banDuration">
+        <option value="60">1 hour</option><option value="360">6 hours</option><option value="720">12 hours</option><option value="1440" selected>1 day</option><option value="4320">3 days</option><option value="10080">7 days</option><option value="20160">14 days</option><option value="43200">30 days</option><option value="129600">90 days</option><option value="custom">Custom…</option><option value="permanent">Permanent</option>
+      </select></label>
+      <label class="banCustomWrap" style="display:none">Custom length (hours)<input class="banCustom" type="number" min="1" max="87600" step="1" value="48"></label>
+      <label style="grid-column:1/-1">Reason (shown to the player)<input class="banReason" maxlength="200" placeholder="e.g. Cheating"></label>
+    </div>
+    <div class="actions"><button type="button" class="banBtn danger">Ban player</button><button type="button" class="unbanBtn secondary">Unban</button></div>
+    <div class="status banStatus" aria-live="polite"></div>`;
+    card.append(banBox);
+    const banSel=banBox.querySelector('.banDuration'),banCustom=banBox.querySelector('.banCustom'),banStatus=banBox.querySelector('.banStatus'),banCurrent=banBox.querySelector('.banCurrent');
+    banSel.addEventListener('change',()=>{banBox.querySelector('.banCustomWrap').style.display=banSel.value==='custom'?'':'none';});
+    const refreshBan=async()=>{
+      if(!banBox.isConnected){liveBanUpdaters.delete(player.user_id);return;}
+      try{const {data,error}=await sb.rpc('hitta_admin_get_ban',{p_target_user_id:player.user_id});if(error)throw error;banCurrent.textContent=describeBan(data);banCurrent.style.color=data?'#ff9b9b':'';}
+      catch(e){banCurrent.textContent='Could not read ban status: '+(e.message||e);}
+    };
+    liveBanUpdaters.set(player.user_id,refreshBan);refreshBan();
+    banBox.querySelector('.banBtn').addEventListener('click',async()=>{
+      let minutes=null,permanent=false,label;
+      if(banSel.value==='permanent'){permanent=true;label='PERMANENTLY';}
+      else if(banSel.value==='custom'){const h=Number(banCustom.value);if(!Number.isSafeInteger(h)||h<1||h>87600)return statusText(banStatus,'Enter 1 to 87,600 hours.',true);minutes=h*60;label='for '+h+' hour(s)';}
+      else{minutes=Number(banSel.value);label='for '+banSel.selectedOptions[0].textContent;}
+      if(!(await immersiveConfirm(`Ban ${player.username||'this player'} ${label}? They are removed from any match or lobby within a few seconds and cannot play until the ban ends.`)))return;
+      if(permanent&&(await immersivePrompt('Type BAN to confirm a PERMANENT ban:'))!=='BAN')return statusText(banStatus,'Ban cancelled.');
+      const b=banBox.querySelector('.banBtn');b.disabled=true;statusText(banStatus,'Applying ban…');
+      try{const {error}=await sb.rpc('hitta_admin_ban_player',{p_target_user_id:player.user_id,p_duration_minutes:minutes,p_permanent:permanent,p_reason:banBox.querySelector('.banReason').value.trim()||null});if(error)throw error;
+        statusText(banStatus,'Player banned.');await refreshBan();loadBannedList();}
+      catch(e){statusText(banStatus,e.message||'Could not ban player.',true);}finally{b.disabled=false;}
+    });
+    banBox.querySelector('.unbanBtn').addEventListener('click',async()=>{
+      if(!(await immersiveConfirm(`Unban ${player.username||'this player'}? They can play again within a few seconds.`)))return;
+      try{const {error}=await sb.rpc('hitta_admin_unban_player',{p_target_user_id:player.user_id});if(error)throw error;statusText(banStatus,'Player unbanned.');await refreshBan();loadBannedList();}
+      catch(e){statusText(banStatus,e.message||'Could not unban.',true);}
+    });
     return card;
   }
 
@@ -597,8 +651,24 @@
   }
 
   let catalogItems = [];
+  const liveBanUpdaters=new Map();
+  function describeBan(b){if(!b||!b.banned)return 'Not banned.';const why=b.reason?' · Reason: '+b.reason:'';return b.permanent?'PERMANENTLY BANNED'+why:'Banned until '+new Date(b.expires_at).toLocaleString()+why;}
+  async function loadBannedList(){
+    const host=$('bannedList');if(!host)return;
+    try{const {data,error}=await sb.rpc('hitta_admin_list_bans');if(error)throw error;host.replaceChildren();
+      if(!Array.isArray(data)||!data.length){host.innerHTML='<div class="empty">No players are currently banned.</div>';return;}
+      data.forEach(r=>{const row=document.createElement('article');row.className='player';const head=document.createElement('div');head.className='player-head';const info=document.createElement('div');
+        const n=document.createElement('div');n.className='username';n.textContent=r.username||'Player';
+        const m=document.createElement('div');m.className='muted';m.textContent=r.user_id+' · '+(r.permanent?'Permanent':'Until '+new Date(r.expires_at).toLocaleString())+(r.reason?' · '+r.reason:'');
+        info.append(n,m);const un=document.createElement('button');un.className='secondary';un.textContent='Unban';
+        un.addEventListener('click',async()=>{if(!(await immersiveConfirm('Unban '+(r.username||'this player')+'?')))return;const {error}=await sb.rpc('hitta_admin_unban_player',{p_target_user_id:r.user_id});if(error){status('bannedStatus',error.message,true);return;}status('bannedStatus','Player unbanned.');loadBannedList();});
+        head.append(info,un);row.append(head);host.append(row);});
+    }catch(e){host.innerHTML='<div class="empty">Could not load banned players.</div>';status('bannedStatus',e.message||'Could not load banned players.',true);}
+  }
+  setInterval(()=>{if(document.visibilityState!=='visible')return;[...liveBanUpdaters.values()].slice(0,10).forEach(fn=>fn());loadBannedList();},6000);
   let lastSearch = '';
   const clanTagOverrideCache = new Map();
+  const liveClanUpdaters = new Map();
 
   async function refreshSearch(updatedPlayerId = null, successMessage = '') {
     const { data, error } = await sb.rpc('hitta_admin_search_players', { p_search: lastSearch });
@@ -612,6 +682,7 @@
       } catch (_) { /* fallback to values returned by the admin search RPC/cache */ }
     }
 
+    liveClanUpdaters.clear();
     $('results').replaceChildren();
     let updatedCard = null;
 
@@ -1006,6 +1077,7 @@
     populateRefundUnlockCosmetics();
     await loadForcedShopItems();
     await loadAnnouncementHistory();
+    await loadBannedList();
   }
 
   let refundUnlockMatches = [];
@@ -1141,6 +1213,8 @@
     }
   });
 
+  setInterval(()=>{ if(document.visibilityState!=='visible') return; [...liveClanUpdaters.values()].slice(0,10).forEach(fn=>fn()); }, 6000);
+  
   initialize();
 })();
 </script>
