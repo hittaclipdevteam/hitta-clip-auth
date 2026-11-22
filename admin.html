@@ -928,12 +928,16 @@
     finally{button.disabled=false;}
   });
 
+  let announcementLoadVersion=0;
   async function loadAnnouncementHistory(){
-    const host=$('announcementHistory'); if(!host)return; host.replaceChildren();
+    const host=$('announcementHistory'); if(!host)return;
+    const thisLoad=++announcementLoadVersion;
     try{const {data,error}=await sb.rpc('hitta_admin_list_announcements');if(error)throw error;
+      if(thisLoad!==announcementLoadVersion)return; // a newer load is running; ignore this stale result
+      host.replaceChildren();
       if(!Array.isArray(data)||!data.length){host.innerHTML='<div class="empty">No announcements have been sent yet.</div>';return;}
-      data.forEach(a=>{const row=document.createElement('article');row.className='player';const title=document.createElement('div');title.className='username';title.textContent=a.title||'Announcement';const meta=document.createElement('div');meta.className='muted';meta.textContent=new Date(a.created_at).toLocaleString()+' · '+Number(a.recipient_count||0).toLocaleString()+' recipients';const del=document.createElement('button');del.className='danger';del.textContent='Remove announcement';del.addEventListener('click',async()=>{if(!(await immersiveConfirm('Remove this announcement from every player notification inbox?')))return;del.disabled=true;try{const {error}=await sb.rpc('hitta_admin_delete_announcement',{p_announcement_id:a.id});if(error)throw error;await loadAnnouncementHistory();status('broadcastStatus','Announcement removed from player inboxes.');}catch(e){status('broadcastStatus',e.message,true);del.disabled=false;}});row.append(title,meta,del);host.append(row);});
-    }catch(e){host.innerHTML='<div class="empty">Could not load announcement history.</div>';status('broadcastStatus',e.message||'Could not load announcement history.',true);}
+      data.forEach(a=>{const row=document.createElement('article');row.className='player';const title=document.createElement('div');title.className='username';title.textContent=a.title||'Announcement';const meta=document.createElement('div');meta.className='muted';meta.textContent=new Date(a.created_at).toLocaleString()+' · '+Number(a.recipient_count||0).toLocaleString()+' recipients';const del=document.createElement('button');del.className='danger';del.textContent='Remove announcement';del.addEventListener('click',async()=>{if(!(await immersiveConfirm('Remove this announcement from every player notification inbox?')))return;if(a.id==null||a.id===''){status('broadcastStatus','This announcement has no unique ID, so it was not deleted. The announcement list function needs to return an id column.',true);return;}del.disabled=true;try{const {error}=await sb.rpc('hitta_admin_delete_announcement',{p_announcement_id:a.id});if(error)throw error;await loadAnnouncementHistory();status('broadcastStatus','Announcement removed from player inboxes.');}catch(e){status('broadcastStatus',e.message,true);del.disabled=false;}});row.append(title,meta,del);host.append(row);});
+    }catch(e){if(thisLoad!==announcementLoadVersion)return;host.innerHTML='<div class="empty">Could not load announcement history.</div>';status('broadcastStatus',e.message||'Could not load announcement history.',true);}
   }
   $('broadcastForm').addEventListener('submit', async (event) => {
     event.preventDefault();const title=$('broadcastTitle').value.trim(),message=$('broadcastMessage').value.trim(),coins=Number($('broadcastCoins').value),file=$('broadcastImage').files[0];
@@ -947,8 +951,6 @@
       status('broadcastStatus',`Sent to ${Number(data?.accounts_notified||0).toLocaleString()} accounts. ${Number(data?.accounts_credited||0).toLocaleString()} accounts received ${coins.toLocaleString()} coins each.`);$('broadcastForm').reset();$('broadcastCoins').value='0';await loadAnnouncementHistory();
     }catch(error){status('broadcastStatus',error.message||'Could not send announcement.',true);}finally{$('broadcastSendBtn').disabled=false;}
   });
-  loadAnnouncementHistory();
-
 
   async function initialize() {
     status('loginStatus', 'Checking sign-in…');
