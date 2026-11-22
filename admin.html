@@ -125,6 +125,7 @@
       <form id="searchForm" class="row">
         <input id="searchInput" type="search" maxlength="50" placeholder="Enter a player username…" autocomplete="off">
         <button id="searchBtn" type="submit">Search</button>
+        <button id="clearSearchBtn" type="button" class="secondary hidden">Clear</button>
       </form>
       <div id="searchStatus" class="status" aria-live="polite"></div>
       <div id="results" class="results"></div>
@@ -530,6 +531,7 @@
     }
 
     status('searchStatus', `${data?.length || 0} player(s) found. Showing up to 50 matches.`);
+    $('clearSearchBtn').classList.remove('hidden');
     if (updatedCard && successMessage) {
       const message = updatedCard.querySelector('.editStatus');
       if (message) statusText(message, successMessage);
@@ -995,6 +997,16 @@
       $('searchBtn').disabled = false;
     }
   });
+
+  function clearSearch() {
+  lastSearch = '';
+  $('searchInput').value = '';
+  $('results').replaceChildren();
+  $('clearSearchBtn').classList.add('hidden');
+  status('searchStatus', 'Search cleared. Search for a player by username.');
+}
+$('clearSearchBtn').addEventListener('click', clearSearch);
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Escape') clearSearch(); });
 
   async function signOut() {
     const { error } = await sb.auth.signOut();
