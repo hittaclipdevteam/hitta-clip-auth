@@ -48,6 +48,10 @@
     .editbox { margin-top:16px; padding-top:14px; border-top:1px solid var(--line) }
     .editgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:9px; margin-top:10px }
     .editgrid label { display:grid; gap:5px; color:var(--muted); font-size:12px }
+    .clan-override-preview{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#0d1119;font-weight:800}
+    .clan-override-preview .tag-preview{font-weight:900}
+    .clan-override-color-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .clan-override-color-row input[type=color]{width:48px;height:42px;padding:3px;cursor:pointer}
     select { width:100%; background:#0d1119; border:1px solid #394456; border-radius:9px; color:var(--text); padding:12px 13px; font:inherit; min-width:0 }
     .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
     .actions button { padding:9px 12px; font-size:13px }
@@ -360,6 +364,21 @@
           <button type="button" class="removeItemBtn danger">Remove cosmetic</button>
         </div>
       </div>
+      <div class="editbox clan-tag-override-box">
+        <strong>Manage clan tag (admin override)</strong>
+        <div class="sub">Set a player's clan tag and color directly. Admin overrides bypass the normal clan-tag character limit and color unlock requirements.</div>
+        <div class="editgrid">
+          <label>Clan tag text<input class="adminClanTagInput" type="text" value="" placeholder="Enter clan tag (no character limit)"></label>
+          <label>Clan tag color<select class="adminClanTagColor"></select></label>
+        </div>
+        <div class="clan-override-color-row" style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px">Custom HEX color<input class="adminClanTagHex" type="color" value="#ffffff" title="Custom color"></label>
+          <span class="muted">Choose a preset or custom color.</span>
+        </div>
+        <div class="clan-override-preview"><span>Preview:</span><span class="tag-preview adminClanTagPreview">CLAN</span></div>
+        <div class="actions"><button type="button" class="saveClanTagOverrideBtn">Save clan tag</button><button type="button" class="resetClanTagOverrideBtn secondary">Reset override</button></div>
+        <div class="status clanTagOverrideStatus" aria-live="polite"></div>
+      </div>
       <div class="editbox clan-admin-box">
         <strong>Manage clan tag color unlocks</strong>
         <div class="sub">Grant or revoke individual color styles for this player. White is always unlocked.</div>
@@ -403,8 +422,53 @@
 
     const editStatus = controls.querySelector('.editStatus');
     const clanStyles = [
-      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black']
+      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave']
     ];
+    if(!document.getElementById('hittaClanTagColorWaveStyle')){const waveStyle=document.createElement('style');waveStyle.id='hittaClanTagColorWaveStyle';waveStyle.textContent='@keyframes hittaClanTagColorWave{0%{background-position:0% 50%}100%{background-position:300% 50%}}';document.head.append(waveStyle);}
+    const clanTagBox = controls.querySelector('.clan-tag-override-box');
+    const clanTagInput = clanTagBox.querySelector('.adminClanTagInput');
+    const clanTagColor = clanTagBox.querySelector('.adminClanTagColor');
+    const clanTagHex = clanTagBox.querySelector('.adminClanTagHex');
+    const clanTagPreview = clanTagBox.querySelector('.adminClanTagPreview');
+    const clanTagStatus = clanTagBox.querySelector('.clanTagOverrideStatus');
+    const clanTagColorMap = {white:'#ffffff',red:'#ff3b3b',orange:'#ff9a24',yellow:'#ffe600',green:'#35d05b',blue:'#24a8ff',purple:'#9b59ff',pink:'#ff66c4',brown:'#9a633f',black:'#171717',grey:'#9aa5b5',rainbow_white:'#ffffff',rainbow_black:'#171717',color_wave:'#ffffff'};
+    clanStyles.forEach(([id,label])=>{const option=document.createElement('option');option.value=id;option.textContent=label;clanTagColor.append(option);});
+    // Load any existing clan tag/color values returned in the player record.
+    clanTagInput.value = safeText(player.clanTag ?? player.clan_tag ?? player.profile?.clanTag ?? player.profile?.clan_tag ?? '');
+    const existingClanColor = safeText(player.clanTagColor ?? player.clan_tag_color ?? player.profile?.clanTagColor ?? player.profile?.clan_tag_color ?? 'white');
+    if(clanStyles.some(([id])=>id===existingClanColor)) clanTagColor.value=existingClanColor;
+    else clanTagColor.value='white';
+    const refreshClanTagPreview=()=>{
+      const color=clanTagColor.value;
+      clanTagPreview.style.animation='';
+      clanTagPreview.textContent=clanTagInput.value||'CLAN';
+      clanTagPreview.style.color=clanTagColorMap[color]||clanTagHex.value;
+      if(color==='rainbow_white'||color==='rainbow_black'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff)';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';}
+      else if(color==='color_wave'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';clanTagPreview.style.backgroundSize='300% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagColorWave 2.4s linear infinite';}
+      else {clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';}
+    };
+    clanTagColor.addEventListener('change',()=>{clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';refreshClanTagPreview();});
+    clanTagHex.addEventListener('input',()=>{clanTagColor.value='custom';refreshClanTagPreview();});
+    clanTagInput.addEventListener('input',refreshClanTagPreview);
+    // Custom HEX is represented as an additional selectable option when chosen.
+    clanTagHex.addEventListener('change',refreshClanTagPreview);
+    clanTagColor.addEventListener('change',()=>{if(clanTagColor.value!=='custom')clanTagHex.value=clanTagColorMap[clanTagColor.value]||'#ffffff';});
+    const customOption=document.createElement('option');customOption.value='custom';customOption.textContent='Custom HEX';clanTagColor.append(customOption);
+    refreshClanTagPreview();
+    clanTagBox.querySelector('.saveClanTagOverrideBtn').addEventListener('click',async()=>{
+      const tag=clanTagInput.value;
+      const color=clanTagColor.value==='custom'?clanTagHex.value:clanTagColor.value;
+      if(!tag.trim())return statusText(clanTagStatus,'Enter a clan tag first.',true);
+      const button=clanTagBox.querySelector('.saveClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Saving clan tag override…');
+      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:tag,p_color:color});if(error)throw error;await refreshSearch(player.user_id,'Clan tag override saved.');}
+      catch(error){statusText(clanTagStatus,error.message||'Could not save clan tag override.',true);button.disabled=false;}
+    });
+    clanTagBox.querySelector('.resetClanTagOverrideBtn').addEventListener('click',async()=>{
+      if(!(await immersiveConfirm(`Reset the admin clan tag override for ${player.username||'this player'}?`)))return;
+      const button=clanTagBox.querySelector('.resetClanTagOverrideBtn');button.disabled=true;statusText(clanTagStatus,'Resetting clan tag override…');
+      try{const {error}=await sb.rpc('hitta_admin_set_clan_tag_override',{p_target_user_id:player.user_id,p_clan_tag:null,p_color:null});if(error)throw error;await refreshSearch(player.user_id,'Clan tag override reset.');}
+      catch(error){statusText(clanTagStatus,error.message||'Could not reset clan tag override.',true);button.disabled=false;}
+    });
     const clanGrid = controls.querySelector('.clanAdminGrid');
     const renderClanAdmin = () => {
       clanGrid.innerHTML = '';
