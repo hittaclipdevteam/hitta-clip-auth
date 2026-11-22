@@ -424,7 +424,7 @@
     const clanStyles = [
       ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave']
     ];
-    if(!document.getElementById('hittaClanTagColorWaveStyle')){const waveStyle=document.createElement('style');waveStyle.id='hittaClanTagColorWaveStyle';waveStyle.textContent='@keyframes hittaClanTagColorWave{0%{background-position:0% 50%}100%{background-position:300% 50%}}';document.head.append(waveStyle);}
+    if(!document.getElementById('hittaClanTagColorWaveStyle')){const waveStyle=document.createElement('style');waveStyle.id='hittaClanTagColorWaveStyle';waveStyle.textContent='@keyframes hittaClanTagColorWave{0%{background-position:0% 50%}100%{background-position:300% 50%}} @keyframes hittaClanTagRainbow{0%{background-position:0% 50%}100%{background-position:400% 50%}} .adminClanTagPreview{display:inline-block;font-weight:800;white-space:pre;background-size:400% 100%;background-repeat:repeat;animation:hittaClanTagRainbow 2.8s linear infinite;-webkit-background-clip:text;background-clip:text}';document.head.append(waveStyle);}
     const clanTagBox = controls.querySelector('.clan-tag-override-box');
     const clanTagInput = clanTagBox.querySelector('.adminClanTagInput');
     const clanTagColor = clanTagBox.querySelector('.adminClanTagColor');
@@ -441,12 +441,19 @@
     else clanTagColor.value='white';
     const refreshClanTagPreview=()=>{
       const color=clanTagColor.value;
+      clanTagPreview.classList.remove('rainbow-white-preview','rainbow-black-preview');
       clanTagPreview.style.animation='';
-      clanTagPreview.textContent=clanTagInput.value||'CLAN';
-      clanTagPreview.style.color=clanTagColorMap[color]||clanTagHex.value;
-      if(color==='rainbow_white'||color==='rainbow_black'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff)';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';}
+      clanTagPreview.textContent='['+(clanTagInput.value||'CLAN')+']';
+      clanTagPreview.style.color=color==='custom'?clanTagHex.value:(clanTagColorMap[color]||'#ffffff');
+      clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';
+      clanTagPreview.style.webkitTextStroke='';clanTagPreview.style.textShadow='';
+      if(color==='rainbow_white'||color==='rainbow_black'){
+        clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';
+        clanTagPreview.style.backgroundSize='400% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagRainbow 2.8s linear infinite';
+        if(color==='rainbow_white'){clanTagPreview.style.webkitTextStroke='0.45px #ffffff';clanTagPreview.style.textShadow='0 0 3px rgba(255,255,255,.8)';clanTagPreview.classList.add('rainbow-white-preview');}
+        else {clanTagPreview.style.webkitTextStroke='0.55px #171717';clanTagPreview.style.textShadow='0 0 3px rgba(0,0,0,.85)';clanTagPreview.classList.add('rainbow-black-preview');}
+      }
       else if(color==='color_wave'){clanTagPreview.style.background='linear-gradient(90deg,#ff3030,#ff9d00,#fff000,#35d05b,#24c8ff,#685bff,#e34dff,#ff3030)';clanTagPreview.style.backgroundSize='300% 100%';clanTagPreview.style.backgroundClip='text';clanTagPreview.style.webkitBackgroundClip='text';clanTagPreview.style.color='transparent';clanTagPreview.style.animation='hittaClanTagColorWave 2.4s linear infinite';}
-      else {clanTagPreview.style.background='';clanTagPreview.style.backgroundSize='';clanTagPreview.style.backgroundClip='';clanTagPreview.style.webkitBackgroundClip='';}
     };
     const updateCustomHexVisibility=()=>{clanTagHexRow.style.display=clanTagColor.value==='custom'?'flex':'none';};
     clanTagColor.addEventListener('change',()=>{
