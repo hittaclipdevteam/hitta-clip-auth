@@ -756,17 +756,21 @@
 
   const RARITY_COLORS = { common:'#9ca3af', uncommon:'#22c55e', rare:'#3b82f6', epic:'#a855f7', legendary:'#f97316', mythic:'#facc15', exotic:'#14b8a6', ancient:'#a16207', relic:'#ef4444', shadow:'#111827', divine:'#f8fafc', celestial:'#ec4899', prismatic:'#ff4fd8' };
   const RARITY_DEFAULT_PRICES = { common:300, uncommon:600, rare:900, epic:1400, legendary:2000, mythic:2700, exotic:3300, ancient:4000, relic:4800, shadow:5600, divine:6500, celestial:7500, prismatic:9000 };
+  // Pickaxes default to 40% cheaper than skins of the same rarity (skin price x 0.6).
+  const PICKAXE_PRICE_MULTIPLIER = 0.6;
+  const RARITY_DEFAULT_PICKAXE_PRICES = Object.fromEntries(Object.entries(RARITY_DEFAULT_PRICES).map(([r,p])=>[r,Math.round(p*PICKAXE_PRICE_MULTIPLIER)]));
+  const defaultPriceFor = (type, rarity) => (type==='pickaxe' ? RARITY_DEFAULT_PICKAXE_PRICES : RARITY_DEFAULT_PRICES)[rarity];
   const RARITIES = Object.keys(RARITY_DEFAULT_PRICES);
-  function setupRaritySelect(selectId, priceId) {
+  function setupRaritySelect(selectId, priceId, type) {
     const select=$(selectId); select.replaceChildren();
     RARITIES.forEach(r=>{const opt=document.createElement('option');opt.value=r;opt.textContent=r[0].toUpperCase()+r.slice(1);select.append(opt);});
-    $(priceId).value=RARITY_DEFAULT_PRICES[select.value];
-    select.addEventListener('change',()=>{$(priceId).value=RARITY_DEFAULT_PRICES[select.value];});
+    $(priceId).value=defaultPriceFor(type,select.value);
+    select.addEventListener('change',()=>{$(priceId).value=defaultPriceFor(type,select.value);});
     $(priceId).dataset.manual='false';
     $(priceId).addEventListener('input',()=>{$(priceId).dataset.manual='true';});
   }
-  setupRaritySelect('skinRarity','skinPrice');
-  setupRaritySelect('pickaxeRarity','pickaxePrice');
+  setupRaritySelect('skinRarity','skinPrice','skin');
+  setupRaritySelect('pickaxeRarity','pickaxePrice','pickaxe');
   $('showSkinForm').addEventListener('click',async()=>{hide('pickaxeUploadForm');show('skinUploadForm');});
   $('showPickaxeForm').addEventListener('click',async()=>{hide('skinUploadForm');show('pickaxeUploadForm');});
   document.querySelectorAll('[data-close-form]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.closeForm)));
@@ -829,7 +833,7 @@
         status(statusId,'Published! The cosmetic is now in the live catalog.');
       }
       $(skin?'skinUploadForm':'pickaxeUploadForm').reset();
-      $(skin?'skinPrice':'pickaxePrice').value=RARITY_DEFAULT_PRICES[$(skin?'skinRarity':'pickaxeRarity').value];
+      $(skin?'skinPrice':'pickaxePrice').value=defaultPriceFor(skin?'skin':'pickaxe',$(skin?'skinRarity':'pickaxeRarity').value);
       await loadCatalog();
     }catch(error){status(statusId,error.message||'Could not publish cosmetic.',true);}
     finally{btn.disabled=false;}
@@ -872,7 +876,7 @@
     const raritySelect = form.querySelector('.edit-rarity');
     const priceInput = form.querySelector('.edit-price');
     raritySelect.addEventListener('change', () => {
-      priceInput.value = RARITY_DEFAULT_PRICES[raritySelect.value];
+      priceInput.value = defaultPriceFor(item.type, raritySelect.value);
     });
     form.querySelector('.cancel-edit-btn').addEventListener('click', () => form.remove());
     form.addEventListener('submit', async event => {
