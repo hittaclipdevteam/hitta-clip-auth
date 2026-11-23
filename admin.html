@@ -159,12 +159,17 @@
           <input id="pickaxeCatalogSearch" type="search" maxlength="100" placeholder="Search pickaxes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search pickaxe catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
           <div id="pickaxeResults" class="catalog-grid"></div>
         </section>
+        <section class="catalog-group">
+          <div class="catalog-heading"><h3>Emotes</h3><span id="emoteCount" class="catalog-count">0 items</span></div>
+          <input id="emoteCatalogSearch" type="search" maxlength="100" placeholder="Search emotes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search emote catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
+          <div id="emoteResults" class="catalog-grid"></div>
+        </section>
       </section>
 
       <section class="cosmetic-manager">
         <div class="topline"><div><h2>Cosmetic Manager</h2><div class="sub">Upload new cosmetics directly to the live game catalog. No game republish required.</div></div></div>
-        <div class="notice">Images must be transparent PNG files with the exact dimensions shown. Skin files: head 46×46, hand 20×20, foot 28×14. Pickaxe: 90×60.</div>
-        <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button></div>
+        <div class="notice">Images must be transparent PNG files with the exact dimensions shown. Skin files: head 46×46, hand 20×20, foot 28×14. Pickaxe: 90×60. Emote: 128×128 transparent PNG.</div>
+        <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button><button id="showEmoteForm" type="button" class="secondary">＋ Add emote</button></div>
         <form id="skinUploadForm" class="cosmetic-form hidden">
           <h3>Add a skin</h3>
           <div class="form-grid">
@@ -193,7 +198,21 @@
           <div class="cosmetic-actions"><button id="publishPickaxeBtn" type="submit">Upload and publish pickaxe</button><button type="button" class="secondary" data-close-form="pickaxeUploadForm">Cancel</button></div>
           <div id="pickaxeUploadStatus" class="status" aria-live="polite"></div>
         </form>
+        <form id="emoteUploadForm" class="cosmetic-form hidden">
+          <h3>Add an emote</h3>
+          <div class="form-grid">
+            <label class="field">Emote name<input id="emoteName" maxlength="60" required placeholder="e.g. GG"></label>
+            <label class="field">Rarity<select id="emoteRarity"></select></label>
+            <label class="field">Price in coins<input id="emotePrice" type="number" min="0" max="1000000" step="1" required></label>
+            <label class="field">Description<textarea id="emoteDescription" maxlength="300" placeholder="Optional emote description"></textarea></label>
+            <label class="field">Emote PNG — 128 × 128 px<input id="emoteFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 128 × 128 pixels. Transparent background recommended.</span></label>
+          </div>
+          <div class="upload-help">Emote prices default to 25% of skin prices. The ID and filename are generated automatically.</div>
+          <div class="cosmetic-actions"><button id="publishEmoteBtn" type="submit">Upload and publish emote</button><button type="button" class="secondary" data-close-form="emoteUploadForm">Cancel</button></div>
+          <div id="emoteUploadStatus" class="status" aria-live="polite"></div>
+        </form>
       </section>
+
 
       <section class="cosmetic-manager" id="itemShopManager">
         <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button><button id="forceShopResetBtn" type="button">Force shop reset now</button></div></div>
@@ -357,8 +376,8 @@
       <div class="editbox">
         <strong>Manage cosmetics</strong>
         <div class="editgrid">
-          <label>Cosmetic type<select class="itemType"><option value="all">Skins + pickaxes</option><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option></select></label>
-          <label>Search cosmetic<input class="itemSearch" type="search" maxlength="100" placeholder="Search skins or pickaxes by name, ID, or rarity…" autocomplete="off"></label>
+          <label>Cosmetic type<select class="itemType"><option value="all">Skins + pickaxes + emotes</option><option value="skin">Skin</option><option value="pickaxe">Pickaxe</option><option value="emote">Emote</option></select></label>
+          <label>Search cosmetic<input class="itemSearch" type="search" maxlength="100" placeholder="Search skins, pickaxes, or emotes by name, ID, or rarity…" autocomplete="off"></label>
           <label>Cosmetic<select class="itemId"></select></label>
         </div>
         <div class="muted itemMatchCount"></div>
@@ -399,9 +418,9 @@
       </div>
       <div class="editbox">
         <strong>Bulk account actions</strong>
-        <div class="sub">Unlock every active catalog cosmetic, or reset this account completely.</div>
+        <div class="sub">Unlock every active catalog cosmetic (including emotes), or reset this account completely.</div>
         <div class="bulk-actions">
-          <button type="button" class="unlockAllBtn">Unlock all cosmetics</button>
+          <button type="button" class="unlockAllBtn">Unlock all cosmetics (incl. emotes)</button>
           <button type="button" class="removeAllBtn danger">Remove all / Reset account</button>
         </div>
       </div>
@@ -414,7 +433,7 @@
     const itemCount = controls.querySelector('.itemMatchCount');
     function fillItems() {
       const type = typeSelect.value, q = itemSearch.value.trim().toLowerCase();
-      const items = catalogItems.filter(i => (i.type==='skin'||i.type==='pickaxe') && (type==='all'||i.type===type) && (!q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v||'').toLowerCase().includes(q))));
+      const items = catalogItems.filter(i => (i.type==='skin'||i.type==='pickaxe'||i.type==='emote') && (type==='all'||i.type===type) && (!q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v||'').toLowerCase().includes(q))));
       itemSelect.replaceChildren();
       items.forEach(i => { const o=document.createElement('option'); o.value=i.type+':'+i.id; o.textContent=`${i.name} · ${i.type} · ${i.rarity}${i.active===false?' (disabled)':''}`; itemSelect.append(o); });
       if (!items.length) { const o=document.createElement('option'); o.value=''; o.disabled=true; o.selected=true; o.textContent='No matching cosmetics'; itemSelect.append(o); }
@@ -595,7 +614,7 @@
       }
     };
     controls.querySelector('.unlockAllBtn').addEventListener('click', async () => {
-      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe').length;
+      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe' || item.type === 'emote').length;
       if (await immersiveConfirm(`Unlock all ${count} active catalog cosmetics for ${player.username || 'this player'}?`)) runBulkAction('unlock_all');
     });
     controls.querySelector('.removeAllBtn').addEventListener('click', async () => {
@@ -758,8 +777,10 @@
   const RARITY_DEFAULT_PRICES = { common:300, uncommon:600, rare:900, epic:1400, legendary:2000, mythic:2700, exotic:3300, ancient:4000, relic:4800, shadow:5600, divine:6500, celestial:7500, prismatic:9000 };
   // Pickaxes default to 40% cheaper than skins of the same rarity (skin price x 0.6).
   const PICKAXE_PRICE_MULTIPLIER = 0.6;
+  const EMOTE_PRICE_MULTIPLIER = 0.25; // Emotes cost 25% of skin prices.
+  const RARITY_DEFAULT_EMOTE_PRICES = Object.fromEntries(Object.entries(RARITY_DEFAULT_PRICES).map(([r,p])=>[r,Math.round(p*EMOTE_PRICE_MULTIPLIER)]));
   const RARITY_DEFAULT_PICKAXE_PRICES = Object.fromEntries(Object.entries(RARITY_DEFAULT_PRICES).map(([r,p])=>[r,Math.round(p*PICKAXE_PRICE_MULTIPLIER)]));
-  const defaultPriceFor = (type, rarity) => (type==='pickaxe' ? RARITY_DEFAULT_PICKAXE_PRICES : RARITY_DEFAULT_PRICES)[rarity];
+  const defaultPriceFor = (type, rarity) => (type==='pickaxe' ? RARITY_DEFAULT_PICKAXE_PRICES : type==='emote' ? RARITY_DEFAULT_EMOTE_PRICES : RARITY_DEFAULT_PRICES)[rarity];
   const RARITIES = Object.keys(RARITY_DEFAULT_PRICES);
   function setupRaritySelect(selectId, priceId, type) {
     const select=$(selectId); select.replaceChildren();
@@ -771,8 +792,10 @@
   }
   setupRaritySelect('skinRarity','skinPrice','skin');
   setupRaritySelect('pickaxeRarity','pickaxePrice','pickaxe');
-  $('showSkinForm').addEventListener('click',async()=>{hide('pickaxeUploadForm');show('skinUploadForm');});
-  $('showPickaxeForm').addEventListener('click',async()=>{hide('skinUploadForm');show('pickaxeUploadForm');});
+  setupRaritySelect('emoteRarity','emotePrice','emote');
+  $('showPickaxeForm').addEventListener('click',async()=>{hide('skinUploadForm');hide('emoteUploadForm');show('pickaxeUploadForm');});
+  $('showSkinForm').addEventListener('click',async()=>{hide('pickaxeUploadForm');hide('emoteUploadForm');show('skinUploadForm');});
+  $('showEmoteForm').addEventListener('click',async()=>{hide('skinUploadForm');hide('pickaxeUploadForm');show('emoteUploadForm');});
   document.querySelectorAll('[data-close-form]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.closeForm)));
   function slugify(value){return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,42);}
   async function validatePng(file,w,h,label){
@@ -793,9 +816,9 @@
     return data || null;
   }
   async function publishCosmetic(type){
-    const skin=type==='skin'; const prefix=skin?'skin':'pickaxe';
+    const skin=type==='skin', emote=type==='emote'; const prefix=skin?'skin':emote?'emote':'pickaxe';
     const name=$(prefix+'Name').value.trim(); const rarity=$(prefix+'Rarity').value; const price=Number($(prefix+'Price').value);
-    const description=$(prefix+'Description').value.trim(); const btn=$(skin?'publishSkinBtn':'publishPickaxeBtn'); const statusId=skin?'skinUploadStatus':'pickaxeUploadStatus';
+    const description=$(prefix+'Description').value.trim(); const btn=$(skin?'publishSkinBtn':emote?'publishEmoteBtn':'publishPickaxeBtn'); const statusId=skin?'skinUploadStatus':emote?'emoteUploadStatus':'pickaxeUploadStatus';
     if(!name) throw new Error('Enter a cosmetic name.');
     if(!Number.isSafeInteger(price)||price<0||price>1000000) throw new Error('Enter a whole-number price between 0 and 1,000,000.');
     const id=slugify(name); if(!id) throw new Error('The name needs at least one letter or number.');
@@ -808,15 +831,15 @@
       if(existing && existing.active !== false) {
         throw new Error('A '+type+' with this ID is already active. Edit it in the Shared Cosmetic Catalog instead of adding a duplicate.');
       }
-      const files=skin?{head:$('skinHeadFile').files[0],hand:$('skinHandFile').files[0],foot:$('skinFootFile').files[0]}:{image:$('pickaxeFile').files[0]};
+      const files=skin?{head:$('skinHeadFile').files[0],hand:$('skinHandFile').files[0],foot:$('skinFootFile').files[0]}:{image:$(emote?'emoteFile':'pickaxeFile').files[0]};
       if(skin){await validatePng(files.head,46,46,'Head');await validatePng(files.hand,20,20,'Hand');await validatePng(files.foot,28,14,'Foot');}
-      else await validatePng(files.image,90,60,'Pickaxe');
+      else if(emote) await validatePng(files.image,128,128,'Emote'); else await validatePng(files.image,90,60,'Pickaxe');
       status(statusId,'Uploading image files…');
       const assets={};
       if(skin){for(const part of ['head','hand','foot']) assets[part]=await uploadAsset('skins/'+id+'/'+id+'_'+part+'.png',files[part]);}
-      else assets.image=await uploadAsset('pickaxes/'+id+'/'+id+'.png',files.image);
+      else if(emote) assets.image=await uploadAsset('emotes/'+id+'/'+id+'.png',files.image); else assets.image=await uploadAsset('pickaxes/'+id+'/'+id+'.png',files.image);
       status(statusId,'Saving cosmetic to the live catalog…');
-      const visual=skin?{col:'#7c9cff'}:{handle:'#5b6475',head:'#dbeafe',shine:'#ffffff'};
+      const visual=skin?{col:'#7c9cff'}:emote?{}:{handle:'#5b6475',head:'#dbeafe',shine:'#ffffff'};
       if(existing) {
         // Reuse the existing primary-key row. This preserves every player's ownership
         // and avoids the duplicate-key error caused by trying to insert a disabled item again.
@@ -832,14 +855,15 @@
         if(error) throw error;
         status(statusId,'Published! The cosmetic is now in the live catalog.');
       }
-      $(skin?'skinUploadForm':'pickaxeUploadForm').reset();
-      $(skin?'skinPrice':'pickaxePrice').value=defaultPriceFor(skin?'skin':'pickaxe',$(skin?'skinRarity':'pickaxeRarity').value);
+      $(skin?'skinUploadForm':emote?'emoteUploadForm':'pickaxeUploadForm').reset();
+      $(prefix+'Price').value=defaultPriceFor(type,$(prefix+'Rarity').value);
       await loadCatalog();
     }catch(error){status(statusId,error.message||'Could not publish cosmetic.',true);}
     finally{btn.disabled=false;}
   }
   $('skinUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('skin');});
   $('pickaxeUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('pickaxe');});
+  $('emoteUploadForm').addEventListener('submit',e=>{e.preventDefault();publishCosmetic('emote');});
   function escapeHtml(value){
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
@@ -859,6 +883,8 @@
       ? `<label class="field">Replace head PNG (optional)<input class="edit-head-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 46 × 46 px</span></label>
          <label class="field">Replace hand PNG (optional)<input class="edit-hand-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 20 × 20 px</span></label>
          <label class="field">Replace foot PNG (optional)<input class="edit-foot-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 28 × 14 px</span></label>`
+      : item.type === 'emote'
+      ? `<label class="field">Replace emote PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 128 × 128 px</span></label>`
       : `<label class="field">Replace pickaxe PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 90 × 60 px</span></label>`;
     form.innerHTML = `<h4>Edit ${escapeHtml(item.name)}</h4>
       <div class="form-grid">
@@ -913,9 +939,10 @@
         }else{
           const file = form.querySelector('.edit-image-file').files[0];
           if(file){
-            await validatePng(file,90,60,'Pickaxe');
-            statusText(message,'Uploading replacement pickaxe image…');
-            assets.image = await uploadAsset('pickaxes/'+item.id+'/'+item.id+'.png',file);
+            const isEmote=item.type==='emote';
+            await validatePng(file,isEmote?128:90,isEmote?128:60,isEmote?'Emote':'Pickaxe');
+            statusText(message,'Uploading replacement '+(isEmote?'emote':'pickaxe')+' image…');
+            assets.image = await uploadAsset((isEmote?'emotes/':'pickaxes/')+item.id+'/'+item.id+'.png',file);
             hasNewAssets = true;
           }
         }
@@ -968,6 +995,7 @@
   function renderCatalogLists() {
     const skins = catalogItems.filter(item => item.type === 'skin');
     const pickaxes = catalogItems.filter(item => item.type === 'pickaxe');
+    const emotes = catalogItems.filter(item => item.type === 'emote');
     // skin1 is the built-in Starter Skin. Show it even if its DB row was deleted.
     const hasStarterSkin = skins.some(item => String(item.id).toLowerCase() === 'skin1' || isStarterCosmetic(item));
     const displaySkins = hasStarterSkin ? skins : [{id:'skin1',type:'skin',name:'Starter Skin',rarity:'common',price:0,active:true,__virtualStarter:true}, ...skins];
@@ -987,10 +1015,12 @@
     };
     renderType('skins', displaySkins, 'skinCatalogSearch', 'skinResults', 'skinCount');
     renderType('pickaxes', pickaxes, 'pickaxeCatalogSearch', 'pickaxeResults', 'pickaxeCount');
+    renderType('emotes', emotes, 'emoteCatalogSearch', 'emoteResults', 'emoteCount');
   }
 
   $('skinCatalogSearch').addEventListener('input', renderCatalogLists);
   $('pickaxeCatalogSearch').addEventListener('input', renderCatalogLists);
+  $('emoteCatalogSearch').addEventListener('input', renderCatalogLists);
 
   let catalogLoadVersion = 0;
   async function loadCatalog() {
@@ -999,6 +1029,7 @@
     if (button) button.disabled = true;
     $('skinResults').replaceChildren();
     $('pickaxeResults').replaceChildren();
+    $('emoteResults').replaceChildren();
     status('catalogStatus', 'Loading shared cosmetics…');
 
     try {
