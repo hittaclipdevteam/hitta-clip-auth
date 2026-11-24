@@ -177,9 +177,9 @@
             <label class="field">Rarity<select id="skinRarity"></select></label>
             <label class="field">Price in coins<input id="skinPrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="skinDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Head PNG — 460 × 460 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 460 × 460 pixels</span></label>
-            <label class="field">Hand PNG — 200 × 200 px<input id="skinHandFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 200 × 200 pixels</span></label>
-            <label class="field">Foot PNG — 280 × 140 px<input id="skinFootFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 280 × 140 pixels</span></label>
+            <label class="field">Head PNG — 460 × 460 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 460 × 460 pixels (automatically downscaled to 46 × 46)</span></label>
+            <label class="field">Hand PNG — 200 × 200 px<input id="skinHandFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 200 × 200 pixels (automatically downscaled to 20 × 20)</span></label>
+            <label class="field">Foot PNG — 280 × 140 px<input id="skinFootFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 280 × 140 pixels (automatically downscaled to 28 × 14)</span></label>
           </div>
           <div class="upload-help">The ID and filenames are generated automatically from the skin name.</div>
           <div class="cosmetic-actions"><button id="publishSkinBtn" type="submit">Upload and publish skin</button><button type="button" class="secondary" data-close-form="skinUploadForm">Cancel</button></div>
@@ -192,7 +192,7 @@
             <label class="field">Rarity<select id="pickaxeRarity"></select></label>
             <label class="field">Price in coins<input id="pickaxePrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="pickaxeDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Pickaxe PNG — 900 × 600 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 900 × 600 pixels; pointing right, grip at left-middle</span></label>
+            <label class="field">Pickaxe PNG — 900 × 600 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 900 × 600 pixels; automatically downscaled to 90 × 60. Point right, grip at left-middle</span></label>
           </div>
           <div class="upload-help">The ID and filename are generated automatically from the pickaxe name.</div>
           <div class="cosmetic-actions"><button id="publishPickaxeBtn" type="submit">Upload and publish pickaxe</button><button type="button" class="secondary" data-close-form="pickaxeUploadForm">Cancel</button></div>
@@ -205,7 +205,7 @@
             <label class="field">Rarity<select id="emoteRarity"></select></label>
             <label class="field">Price in coins<input id="emotePrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="emoteDescription" maxlength="300" placeholder="Optional emote description"></textarea></label>
-            <label class="field">Emote PNG — 1280 × 1280 px<input id="emoteFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 1280 × 1280 pixels. Transparent background recommended.</span></label>
+            <label class="field">Emote PNG — 1280 × 1280 px<input id="emoteFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 1280 × 1280 pixels; automatically downscaled to 128 × 128. Transparent background recommended.</span></label>
           </div>
           <div class="upload-help">Emote prices default to 25% of skin prices. The ID and filename are generated automatically.</div>
           <div class="cosmetic-actions"><button id="publishEmoteBtn" type="submit">Upload and publish emote</button><button type="button" class="secondary" data-close-form="emoteUploadForm">Cancel</button></div>
@@ -798,11 +798,23 @@
   $('showEmoteForm').addEventListener('click',async()=>{hide('skinUploadForm');hide('pickaxeUploadForm');show('emoteUploadForm');});
   document.querySelectorAll('[data-close-form]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.closeForm)));
   function slugify(value){return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,42);}
-  async function validatePng(file,w,h,label){
+  // Accept either final game dimensions or 10x drawing dimensions. Larger artwork is
+  // downscaled in-browser with high-quality smoothing before it reaches Supabase.
+  async function preparePng(file,w,h,label){
     if(!file || file.type!=='image/png') throw new Error(label+' must be a PNG file.');
     const bitmap=await createImageBitmap(file);
-    const ok=bitmap.width===w && bitmap.height===h; const actual=bitmap.width+'×'+bitmap.height; bitmap.close?.();
-    if(!ok) throw new Error(label+' must be exactly '+w+'×'+h+' pixels. Your file is '+actual+'.');
+    const actual=bitmap.width+'×'+bitmap.height;
+    if(bitmap.width===w && bitmap.height===h){bitmap.close?.();return file;}
+    if(bitmap.width!==w*10 || bitmap.height!==h*10){
+      bitmap.close?.();
+      throw new Error(label+' must be '+w+'×'+h+' or '+(w*10)+'×'+(h*10)+' pixels. Your file is '+actual+'.');
+    }
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d');
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.clearRect(0,0,w,h);ctx.drawImage(bitmap,0,0,w,h);bitmap.close?.();
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not resize '+label+' PNG.')),'image/png'));
+    return new File([blob],file.name,{type:'image/png',lastModified:file.lastModified});
   }
   async function uploadAsset(path,file){
     // Replace the existing object at the same path and minimize stale CDN/browser caching.
@@ -834,8 +846,8 @@
         throw new Error('A '+type+' with this ID is already active. Edit it in the Shared Cosmetic Catalog instead of adding a duplicate.');
       }
       const files=skin?{head:$('skinHeadFile').files[0],hand:$('skinHandFile').files[0],foot:$('skinFootFile').files[0]}:{image:$(emote?'emoteFile':'pickaxeFile').files[0]};
-      if(skin){await validatePng(files.head,46,46,'Head');await validatePng(files.hand,20,20,'Hand');await validatePng(files.foot,28,14,'Foot');}
-      else if(emote) await validatePng(files.image,128,128,'Emote'); else await validatePng(files.image,90,60,'Pickaxe');
+      if(skin){files.head=await preparePng(files.head,46,46,'Head');files.hand=await preparePng(files.hand,20,20,'Hand');files.foot=await preparePng(files.foot,28,14,'Foot');}
+      else if(emote) files.image=await preparePng(files.image,128,128,'Emote'); else files.image=await preparePng(files.image,90,60,'Pickaxe');
       status(statusId,'Uploading image files…');
       const assets={};
       if(skin){for(const part of ['head','hand','foot']) assets[part]=await uploadAsset('skins/'+id+'/'+id+'_'+part+'.png',files[part]);}
@@ -882,12 +894,12 @@
     form.dataset.cosmeticId = String(item.id);
     const rarityOptions = RARITIES.map(r => `<option value="${r}" ${r===String(item.rarity).toLowerCase()?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('');
     const imageFields = item.type === 'skin'
-      ? `<label class="field">Replace head PNG (optional)<input class="edit-head-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 460 × 460 px</span></label>
-         <label class="field">Replace hand PNG (optional)<input class="edit-hand-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 200 × 200 px</span></label>
-         <label class="field">Replace foot PNG (optional)<input class="edit-foot-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 280 × 140 px</span></label>`
+      ? `<label class="field">Replace head PNG (optional)<input class="edit-head-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 460 × 460 px (downscaled to 46 × 46)</span></label>
+         <label class="field">Replace hand PNG (optional)<input class="edit-hand-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 200 × 200 px (downscaled to 20 × 20)</span></label>
+         <label class="field">Replace foot PNG (optional)<input class="edit-foot-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 280 × 140 px (downscaled to 28 × 14)</span></label>`
       : item.type === 'emote'
-      ? `<label class="field">Replace emote PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 1280 × 1280 px</span></label>`
-      : `<label class="field">Replace pickaxe PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 900 × 600 px</span></label>`;
+      ? `<label class="field">Replace emote PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 1280 × 1280 px (downscaled to 128 × 128)</span></label>`
+      : `<label class="field">Replace pickaxe PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 900 × 600 px (downscaled to 90 × 60)</span></label>`;
     form.innerHTML = `<h4>Edit ${escapeHtml(item.name)}</h4>
       <div class="form-grid">
         <label class="field">Cosmetic name<input class="edit-name" maxlength="60" required value="${escapeHtml(item.name)}"></label>
@@ -896,7 +908,7 @@
         <label class="field" style="grid-column:1/-1">Description<textarea class="edit-description" maxlength="300">${escapeHtml(item.description||'')}</textarea></label>
         ${imageFields}
       </div>
-      <div class="upload-help">Leave image fields empty to keep the current images. New files must be transparent PNGs with the exact dimensions shown.</div>
+      <div class="upload-help">Leave image fields empty to keep the current images. New files must be transparent PNGs in either the displayed 10× drawing size or the original in-game size; 10× images are automatically downscaled before upload.</div>
       <div class="cosmetic-actions"><button type="submit" class="save-edit-btn">Save changes</button><button type="button" class="secondary cancel-edit-btn">Cancel</button></div>
       <div class="status edit-cosmetic-status" aria-live="polite"></div>`;
 
@@ -931,9 +943,9 @@
           };
           const dimensions = {head:[46,46],hand:[20,20],foot:[28,14]};
           for(const part of ['head','hand','foot']){
-            const file = replacements[part];
+            let file = replacements[part];
             if(!file) continue;
-            await validatePng(file,dimensions[part][0],dimensions[part][1],part[0].toUpperCase()+part.slice(1));
+            file=await preparePng(file,dimensions[part][0],dimensions[part][1],part[0].toUpperCase()+part.slice(1));
             statusText(message,'Uploading replacement '+part+' image…');
             assets[part] = await uploadAsset('skins/'+item.id+'/'+item.id+'_'+part+'.png',file);
             hasNewAssets = true;
@@ -942,7 +954,7 @@
           const file = form.querySelector('.edit-image-file').files[0];
           if(file){
             const isEmote=item.type==='emote';
-            await validatePng(file,isEmote?128:90,isEmote?128:60,isEmote?'Emote':'Pickaxe');
+            file=await preparePng(file,isEmote?128:90,isEmote?128:60,isEmote?'Emote':'Pickaxe');
             statusText(message,'Uploading replacement '+(isEmote?'emote':'pickaxe')+' image…');
             assets.image = await uploadAsset((isEmote?'emotes/':'pickaxes/')+item.id+'/'+item.id+'.png',file);
             hasNewAssets = true;
