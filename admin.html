@@ -168,7 +168,7 @@
 
       <section class="cosmetic-manager">
         <div class="topline"><div><h2>Cosmetic Manager</h2><div class="sub">Upload new cosmetics directly to the live game catalog. No game republish required.</div></div></div>
-        <div class="notice">Upload transparent PNG files at native game sizes or 10× artwork, or validated SVG artwork using paths only (no scripts or embedded images). Skin files: head 46×46 or 460×460, hand 20×20 or 200×200, foot 28×14 or 280×140. Pickaxe: 90×60 or 900×600. Emote: 128×128 or 1280×1280.</div>
+        <div class="notice">Upload transparent PNG files at native game sizes or 10× artwork, or Photopea-compatible SVG files with embedded PNG artwork. SVG scripts, external images, and unsafe content are blocked. Skin files: head 46×46 or 460×460, hand 20×20 or 200×200, foot 28×14 or 280×140. Pickaxe: 90×60 or 900×600. Emote: 128×128 or 1280×1280.</div>
         <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button><button id="showEmoteForm" type="button" class="secondary">＋ Add emote</button></div>
         <form id="skinUploadForm" class="cosmetic-form hidden">
           <h3>Add a skin</h3>
@@ -803,9 +803,13 @@
     const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
     const svg = doc.documentElement;
     if (svg.nodeName !== 'svg' || doc.querySelector('parsererror')) throw new Error(label + ' is not a valid SVG.');
-    if (doc.querySelector('script,foreignObject,image,iframe,style[src]')) throw new Error(label + ' contains scripts or embedded images. Export with paths only.');
+    if (doc.querySelector('script,foreignObject,iframe,object,embed,link,style[src]')) throw new Error(label + ' contains unsafe SVG elements.');
+    for (const imgEl of doc.querySelectorAll('image')) {
+      const href = imgEl.getAttribute('href') || imgEl.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/i.test(href)) throw new Error(label + ' contains an unsupported or external embedded image. Photopea SVGs must embed PNG data only.');
+    }
     for (const el of doc.querySelectorAll('*')) for (const a of el.attributes) {
-      if (/^on/i.test(a.name) || /^\s*(https?:|javascript:)/i.test(a.value) || (a.name.toLowerCase() === 'style' && /url\s*\(/i.test(a.value))) throw new Error(label + ' contains unsafe content.');
+      if (/^on/i.test(a.name) || /^\s*(https?:|javascript:|data:(?!image\/png;base64,))/i.test(a.value) || (a.name.toLowerCase() === 'style' && /url\s*\(/i.test(a.value))) throw new Error(label + ' contains unsafe content.');
     }
     let vw, vh;
     const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
