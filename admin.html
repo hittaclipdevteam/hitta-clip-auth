@@ -168,7 +168,7 @@
 
       <section class="cosmetic-manager">
         <div class="topline"><div><h2>Cosmetic Manager</h2><div class="sub">Upload new cosmetics directly to the live game catalog. No game republish required.</div></div></div>
-        <div class="notice">Images must be transparent PNG files with the exact dimensions shown. Skin files: head 46×46, hand 20×20, foot 28×14. Pickaxe: 90×60. Emote: 128×128 transparent PNG.</div>
+        <div class="notice">Images should be transparent PNG files. Draw at the larger sizes shown below for smoother artwork; the game still uses the original small dimensions. Skin files: head 460×460, hand 200×200, foot 280×140. Pickaxe: 900×600. Emote: 1280×1280 transparent PNG.</div>
         <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button><button id="showEmoteForm" type="button" class="secondary">＋ Add emote</button></div>
         <form id="skinUploadForm" class="cosmetic-form hidden">
           <h3>Add a skin</h3>
@@ -177,9 +177,9 @@
             <label class="field">Rarity<select id="skinRarity"></select></label>
             <label class="field">Price in coins<input id="skinPrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="skinDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Head PNG — 46 × 46 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 46 × 46 pixels</span></label>
-            <label class="field">Hand PNG — 20 × 20 px<input id="skinHandFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 20 × 20 pixels</span></label>
-            <label class="field">Foot PNG — 28 × 14 px<input id="skinFootFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 28 × 14 pixels</span></label>
+            <label class="field">Head PNG — 460 × 460 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 460 × 460 pixels</span></label>
+            <label class="field">Hand PNG — 200 × 200 px<input id="skinHandFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 200 × 200 pixels</span></label>
+            <label class="field">Foot PNG — 280 × 140 px<input id="skinFootFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 280 × 140 pixels</span></label>
           </div>
           <div class="upload-help">The ID and filenames are generated automatically from the skin name.</div>
           <div class="cosmetic-actions"><button id="publishSkinBtn" type="submit">Upload and publish skin</button><button type="button" class="secondary" data-close-form="skinUploadForm">Cancel</button></div>
@@ -192,7 +192,7 @@
             <label class="field">Rarity<select id="pickaxeRarity"></select></label>
             <label class="field">Price in coins<input id="pickaxePrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="pickaxeDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Pickaxe PNG — 90 × 60 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 90 × 60 pixels; pointing right, grip at left-middle</span></label>
+            <label class="field">Pickaxe PNG — 900 × 600 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 900 × 600 pixels; pointing right, grip at left-middle</span></label>
           </div>
           <div class="upload-help">The ID and filename are generated automatically from the pickaxe name.</div>
           <div class="cosmetic-actions"><button id="publishPickaxeBtn" type="submit">Upload and publish pickaxe</button><button type="button" class="secondary" data-close-form="pickaxeUploadForm">Cancel</button></div>
@@ -205,7 +205,7 @@
             <label class="field">Rarity<select id="emoteRarity"></select></label>
             <label class="field">Price in coins<input id="emotePrice" type="number" min="0" max="1000000" step="1" required></label>
             <label class="field">Description<textarea id="emoteDescription" maxlength="300" placeholder="Optional emote description"></textarea></label>
-            <label class="field">Emote PNG — 128 × 128 px<input id="emoteFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Exactly 128 × 128 pixels. Transparent background recommended.</span></label>
+            <label class="field">Emote PNG — 1280 × 1280 px<input id="emoteFile" class="file-input" type="file" accept="image/png" required><span class="dimension">Draw at 1280 × 1280 pixels. Transparent background recommended.</span></label>
           </div>
           <div class="upload-help">Emote prices default to 25% of skin prices. The ID and filename are generated automatically.</div>
           <div class="cosmetic-actions"><button id="publishEmoteBtn" type="submit">Upload and publish emote</button><button type="button" class="secondary" data-close-form="emoteUploadForm">Cancel</button></div>
@@ -882,12 +882,12 @@
     form.dataset.cosmeticId = String(item.id);
     const rarityOptions = RARITIES.map(r => `<option value="${r}" ${r===String(item.rarity).toLowerCase()?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('');
     const imageFields = item.type === 'skin'
-      ? `<label class="field">Replace head PNG (optional)<input class="edit-head-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 46 × 46 px</span></label>
-         <label class="field">Replace hand PNG (optional)<input class="edit-hand-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 20 × 20 px</span></label>
-         <label class="field">Replace foot PNG (optional)<input class="edit-foot-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 28 × 14 px</span></label>`
+      ? `<label class="field">Replace head PNG (optional)<input class="edit-head-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 460 × 460 px</span></label>
+         <label class="field">Replace hand PNG (optional)<input class="edit-hand-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 200 × 200 px</span></label>
+         <label class="field">Replace foot PNG (optional)<input class="edit-foot-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 280 × 140 px</span></label>`
       : item.type === 'emote'
-      ? `<label class="field">Replace emote PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 128 × 128 px</span></label>`
-      : `<label class="field">Replace pickaxe PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Exactly 90 × 60 px</span></label>`;
+      ? `<label class="field">Replace emote PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 1280 × 1280 px</span></label>`
+      : `<label class="field">Replace pickaxe PNG (optional)<input class="edit-image-file file-input" type="file" accept="image/png"><span class="dimension">Draw at 900 × 600 px</span></label>`;
     form.innerHTML = `<h4>Edit ${escapeHtml(item.name)}</h4>
       <div class="form-grid">
         <label class="field">Cosmetic name<input class="edit-name" maxlength="60" required value="${escapeHtml(item.name)}"></label>
