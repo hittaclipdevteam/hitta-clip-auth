@@ -804,12 +804,23 @@
     const svg = doc.documentElement;
     if (svg.nodeName !== 'svg' || doc.querySelector('parsererror')) throw new Error(label + ' is not a valid SVG.');
     if (doc.querySelector('script,foreignObject,iframe,object,embed,link,style[src]')) throw new Error(label + ' contains unsafe SVG elements.');
+    // Photopea exports often include empty style blocks and <use href="#img1"> references.
+    // Remove empty styles; allow only local fragment references and embedded PNG data.
+    doc.querySelectorAll('style').forEach(st => { if (!st.textContent.trim()) st.remove(); });
     for (const imgEl of doc.querySelectorAll('image')) {
       const href = imgEl.getAttribute('href') || imgEl.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
       if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/i.test(href)) throw new Error(label + ' contains an unsupported or external embedded image. Photopea SVGs must embed PNG data only.');
     }
-    for (const el of doc.querySelectorAll('*')) for (const a of el.attributes) {
-      if (/^on/i.test(a.name) || /^\s*(https?:|javascript:|data:(?!image\/png;base64,))/i.test(a.value) || (a.name.toLowerCase() === 'style' && /url\s*\(/i.test(a.value))) throw new Error(label + ' contains unsafe content.');
+    for (const el of doc.querySelectorAll('*')) for (const a of [...el.attributes]) {
+      const name = a.name.toLowerCase(), value = a.value.trim();
+      if (name.startsWith('on')) throw new Error(label + ' contains unsafe content.');
+      if (name === 'href' || name === 'xlink:href') {
+        if (value.startsWith('#')) continue;
+        if (value.startsWith('data:image/png;base64,') && el.nodeName.toLowerCase() === 'image') continue;
+        throw new Error(label + ' contains unsafe content.');
+      }
+      if (name === 'style' && /url\s*\(|expression\s*\(|javascript:/i.test(value)) throw new Error(label + ' contains unsafe content.');
+      if (name !== 'xmlns' && name !== 'xmlns:xlink' && /(?:https?:|javascript:|data:)/i.test(value)) throw new Error(label + ' contains unsafe content.');
     }
     let vw, vh;
     const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
