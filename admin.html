@@ -799,41 +799,78 @@
   document.querySelectorAll('[data-close-form]').forEach(b=>b.addEventListener('click',()=>hide(b.dataset.closeForm)));
   function slugify(value){return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,42);}
   async function preparePng(file,w,h,label){
-    if(!file || file.type!=='image/png') throw new Error(label+' must be a PNG file.');
-    const bitmap=await createImageBitmap(file);
-    const actual=bitmap.width+'×'+bitmap.height;
-    if(bitmap.width===w && bitmap.height===h){bitmap.close?.();return file;}
-    if(bitmap.width!==w*10 || bitmap.height!==h*10){bitmap.close?.();throw new Error(label+' must be '+w+'×'+h+' px or 10× artwork ('+(w*10)+'×'+(h*10)+' px). Your file is '+actual+'.');}
-    // Resize in two smoothing passes to avoid the soft result of a single large shrink.
-    const intermediate=document.createElement('canvas');
-    intermediate.width=Math.max(w*2,1);intermediate.height=Math.max(h*2,1);
-    const c1=intermediate.getContext('2d',{willReadFrequently:true});
-    c1.clearRect(0,0,intermediate.width,intermediate.height);
-    c1.imageSmoothingEnabled=true;c1.imageSmoothingQuality='high';
-    c1.drawImage(bitmap,0,0,intermediate.width,intermediate.height);
-    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    ctx.clearRect(0,0,w,h);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-    ctx.drawImage(intermediate,0,0,w,h);bitmap.close?.();
-    // Subtle unsharp mask on visible pixels only; leave alpha unchanged to avoid halos.
-    const imageData=ctx.getImageData(0,0,w,h),src=imageData.data;
-    const original=new Uint8ClampedArray(src),amount=0.32;
-    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-      const i=(y*w+x)*4;if(src[i+3]===0)continue;
-      for(let ch=0;ch<3;ch++){
-        let sum=0,count=0;
-        for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-          if(dx===0&&dy===0)continue;const nx=x+dx,ny=y+dy;
-          if(nx<0||ny<0||nx>=w||ny>=h)continue;
-          const ni=(ny*w+nx)*4;if(src[ni+3]===0)continue;sum+=original[ni+ch];count++;
+  if(!file || file.type!=='image/png') throw new Error(label+' must be a PNG file.');
+  const bitmap=await createImageBitmap(file,{premultiplyAlpha:'none'});
+  const actual=bitmap.width+'×'+bitmap.height;
+  if(bitmap.width===w && bitmap.height===h){bitmap.close?.();return file;}
+  if(bitmap.width!==w*10 || bitmap.height!==h*10){
+    bitmap.close?.();
+    throw new Error(label+' must be '+w+'×'+h+' px or 10× artwork ('+(w*10)+'×'+(h*10)+' px). Your file is '+actual+'.');
+  }
+  const F=10, SW=w*F, SH=h*F;
+
+  // Read the full-resolution pixels.
+  const srcCanvas=document.createElement('canvas');
+  srcCanvas.width=SW; srcCanvas.height=SH;
+  const sctx=srcCanvas.getContext('2d',{willReadFrequently:true});
+  sctx.drawImage(bitmap,0,0);
+  bitmap.close?.();
+  const src=sctx.getImageData(0,0,SW,SH).data;
+
+  // Alpha-weighted box filter: each output pixel is the exact average of a 10×10 block.
+  // Colour is weighted by alpha so transparent pixels never tint the edges.
+  const out=new Float32Array(w*h*4);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let sa=0,sr=0,sg=0,sb=0;
+      for(let dy=0;dy<F;dy++){
+        let i=(((y*F+dy)*SW)+x*F)*4;
+        for(let dx=0;dx<F;dx++,i+=4){
+          const a=src[i+3];
+          if(!a) continue;
+          sa+=a; sr+=src[i]*a; sg+=src[i+1]*a; sb+=src[i+2]*a;
         }
-        if(count){const blur=sum/count;src[i+ch]=original[i+ch]+(original[i+ch]-blur)*amount;}
+      }
+      const o=(y*w+x)*4;
+      if(sa>0){ out[o]=sr/sa; out[o+1]=sg/sa; out[o+2]=sb/sa; }
+      out[o+3]=sa/(F*F);
+    }
+  }
+
+  // Gentle sharpening: colour only against visible neighbours, alpha against all neighbours
+  // (this tightens outlines without creating halos in transparent areas).
+  const COLOR_SHARPEN=0.35, ALPHA_SHARPEN=0.6;
+  const result=new Uint8ClampedArray(w*h*4);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const o=(y*w+x)*4, a=out[o+3];
+      let aSum=0,aCount=0;
+      const cSum=[0,0,0]; let cWeight=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy) continue;
+        const nx=x+dx, ny=y+dy;
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+        const n=(ny*w+nx)*4, na=out[n+3];
+        aSum+=na; aCount++;
+        if(na>0){ cSum[0]+=out[n]*na; cSum[1]+=out[n+1]*na; cSum[2]+=out[n+2]*na; cWeight+=na; }
+      }
+      const blurA=aCount?aSum/aCount:a;
+      result[o+3]=a+(a-blurA)*ALPHA_SHARPEN;
+      for(let c=0;c<3;c++){
+        let v=out[o+c];
+        if(a>0 && cWeight>0){ v=v+(v-cSum[c]/cWeight)*COLOR_SHARPEN; }
+        result[o+c]=v;
       }
     }
-    ctx.putImageData(imageData,0,0);
-    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not encode resized '+label+' PNG.')),'image/png'));
-    return new File([blob],file.name,{type:'image/png',lastModified:file.lastModified});
   }
+
+  const canvas=document.createElement('canvas');
+  canvas.width=w; canvas.height=h;
+  const ctx=canvas.getContext('2d');
+  ctx.putImageData(new ImageData(result,w,h),0,0);
+  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not encode resized '+label+' PNG.')),'image/png'));
+  return new File([blob],file.name,{type:'image/png',lastModified:file.lastModified});
+}
   async function uploadAsset(path,file){
     // Replace the existing object at the same path and minimize stale CDN/browser caching.
     const {error}=await sb.storage.from('hitta-cosmetics').upload(path,file,{contentType:'image/png',upsert:true,cacheControl:'0'});
