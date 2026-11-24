@@ -255,6 +255,7 @@
         <div id="refundUnlockPlayerStatus" class="status" aria-live="polite"></div>
         <div class="form-grid" style="margin-top:10px">
           <label class="field">Player account<select id="refundUnlockPlayer" required><option value="">Search for a player first</option></select></label>
+          <label class="field">Search cosmetic<input id="refundUnlockCosmeticSearch" type="search" maxlength="100" placeholder="Search cosmetic name, ID, type, or rarity…" autocomplete="off"></label>
           <label class="field">Cosmetic<select id="refundUnlockCosmetic" required><option value="">Loading cosmetics…</option></select></label>
         </div>
         <div class="cosmetic-actions"><button id="refundUnlockBtn" type="button">Restore refund eligibility</button></div>
@@ -1205,7 +1206,14 @@
       status('refundUnlockPlayerStatus',`${refundUnlockMatches.length} matching account(s) found. Select the correct player.`);
     }catch(error){status('refundUnlockPlayerStatus',error.message||'Player search failed.',true);}
   });
-  function populateRefundUnlockCosmetics(){const select=$('refundUnlockCosmetic');select.replaceChildren();select.add(new Option('Select a cosmetic…',''));catalogItems.forEach(item=>select.add(new Option(`${item.name} · ${item.type}`,`${item.type}:${item.id}`)));}
+  function populateRefundUnlockCosmetics(){
+    const select=$('refundUnlockCosmetic'), query=$('refundUnlockCosmeticSearch').value.trim().toLowerCase(), previous=select.value;
+    select.replaceChildren();select.add(new Option('Select a cosmetic…',''));
+    const matches=catalogItems.filter(item=>[item.name,item.id,item.type,item.rarity,item.description].some(value=>String(value||'').toLowerCase().includes(query)));
+    matches.forEach(item=>select.add(new Option(`${item.name} · ${item.type} · ${item.rarity||''}`,`${item.type}:${item.id}`)));
+    if(previous&&matches.some(item=>`${item.type}:${item.id}`===previous))select.value=previous;
+  }
+  $('refundUnlockCosmeticSearch').addEventListener('input',populateRefundUnlockCosmetics);
   $('refundUnlockBtn').addEventListener('click',async()=>{
     const userId=$('refundUnlockPlayer').value, key=$('refundUnlockCosmetic').value;
     if(!userId||!key){status('refundUnlockStatus','Select both a player and a cosmetic.',true);return;}
