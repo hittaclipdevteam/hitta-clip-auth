@@ -1,12 +1,15 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HITTA CLIP — Admin</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <title>
+   HITTA CLIP — Admin
+  </title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+  </script>
   <style>
-    :root { color-scheme: dark; --bg:#0b0d12; --panel:#141821; --line:#293140; --muted:#9aa5b5; --text:#f4f6fa; --accent:#7c9cff; --danger:#ff7373; }
+   :root { color-scheme: dark; --bg:#0b0d12; --panel:#141821; --line:#293140; --muted:#9aa5b5; --text:#f4f6fa; --accent:#7c9cff; --danger:#ff7373; }
     * { box-sizing:border-box }
     body { margin:0; min-height:100vh; background:radial-gradient(ellipse at top,#172033 0,#0b0d12 55%); color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
     .wrap { width:min(1100px,calc(100% - 32px)); margin:48px auto; }
@@ -91,203 +94,552 @@
     footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
     @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
   </style>
-</head>
-<body>
+ </head>
+ <body>
   <main class="wrap">
-    <header>
+   <header>
+    <div>
+     <div class="brand">
+      HITTA
+      <span>
+       CLIP
+      </span>
+     </div>
+     <div class="sub">
+      Private administration
+     </div>
+    </div>
+    <button class="secondary hidden" id="signOutBtn">
+     Sign out
+    </button>
+   </header>
+   <section class="panel" id="loginPanel">
+    <h1>
+     Admin sign in
+    </h1>
+    <p>
+     Sign in with a Google account that has been authorized by the HITTA CLIP owner.
+    </p>
+    <button id="googleBtn">
+     Continue with Google
+    </button>
+    <div aria-live="polite" class="status" id="loginStatus">
+    </div>
+   </section>
+   <section class="panel hidden" id="deniedPanel">
+    <h1>
+     Access not authorized
+    </h1>
+    <p>
+     This Google account is signed in, but it does not have an administrator role for HITTA CLIP.
+    </p>
+    <button class="secondary" id="deniedSignOut">
+     Sign out
+    </button>
+    <div class="status" id="deniedStatus">
+    </div>
+   </section>
+   <section class="panel hidden" id="adminPanel">
+    <div class="topline">
+     <div>
+      <h1>
+       Player management
+      </h1>
+      <div class="sub" id="signedInAs">
+      </div>
+     </div>
+     <span class="role" id="roleBadge">
+      Admin
+     </span>
+    </div>
+    <h2>
+     Search player accounts
+    </h2>
+    <form class="row" id="searchForm">
+     <input autocomplete="off" id="searchInput" maxlength="50" placeholder="Enter a player username…" type="search"/>
+     <button id="searchBtn" type="submit">
+      Search
+     </button>
+     <button class="secondary" id="cancelSearchBtn" type="button">
+      Cancel
+     </button>
+    </form>
+    <div aria-live="polite" class="status" id="searchStatus">
+    </div>
+    <div class="results" id="results">
+    </div>
+    <section style="margin-top:30px">
+     <div class="topline">
       <div>
-        <div class="brand">HITTA <span>CLIP</span></div>
-        <div class="sub">Private administration</div>
+       <h2>
+        Shared cosmetic catalog
+       </h2>
+       <div class="sub">
+        All cosmetics in the game catalog. Temporarily disabled items remain here and in existing player lockers.
+       </div>
       </div>
-      <button id="signOutBtn" class="secondary hidden">Sign out</button>
-    </header>
-
-    <section id="loginPanel" class="panel">
-      <h1>Admin sign in</h1>
-      <p>Sign in with a Google account that has been authorized by the HITTA CLIP owner.</p>
-      <button id="googleBtn">Continue with Google</button>
-      <div id="loginStatus" class="status" aria-live="polite"></div>
-    </section>
-
-    <section id="deniedPanel" class="panel hidden">
-      <h1>Access not authorized</h1>
-      <p>This Google account is signed in, but it does not have an administrator role for HITTA CLIP.</p>
-      <button id="deniedSignOut" class="secondary">Sign out</button>
-      <div id="deniedStatus" class="status"></div>
-    </section>
-
-    <section id="adminPanel" class="panel hidden">
-      <div class="topline">
-        <div>
-          <h1>Player management</h1>
-          <div id="signedInAs" class="sub"></div>
-        </div>
-        <span id="roleBadge" class="role">Admin</span>
+      <button class="secondary" id="refreshCatalogBtn" type="button">
+       Refresh catalog
+      </button>
+     </div>
+     <div aria-live="polite" class="status" id="catalogStatus">
+      Loading catalog…
+     </div>
+     <section class="catalog-group">
+      <div class="catalog-heading">
+       <h3>
+        Skins
+       </h3>
+       <span class="catalog-count" id="skinCount">
+        0 items
+       </span>
       </div>
-
-      <h2>Search player accounts</h2>
-      <form id="searchForm" class="row">
-        <input id="searchInput" type="search" maxlength="50" placeholder="Enter a player username…" autocomplete="off">
-        <button id="searchBtn" type="submit">Search</button>
-        <button id="cancelSearchBtn" class="secondary" type="button">Cancel</button>
-      </form>
-      <div id="searchStatus" class="status" aria-live="polite"></div>
-      <div id="results" class="results"></div>
-
-      <section style="margin-top:30px">
-        <div class="topline">
-          <div>
-            <h2>Shared cosmetic catalog</h2>
-            <div class="sub">All cosmetics in the game catalog. Temporarily disabled items remain here and in existing player lockers.</div>
-          </div>
-          <button id="refreshCatalogBtn" class="secondary" type="button">Refresh catalog</button>
-        </div>
-        <div id="catalogStatus" class="status" aria-live="polite">Loading catalog…</div>
-        <section class="catalog-group">
-          <div class="catalog-heading">
-            <h3>Skins</h3>
-            <span id="skinCount" class="catalog-count">0 items</span>
-          </div>
-          <input id="skinCatalogSearch" type="search" maxlength="100" placeholder="Search skins by name, ID, rarity, or description…" autocomplete="off" aria-label="Search skin catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
-          <div id="skinResults" class="catalog-grid"></div>
-        </section>
-        <section class="catalog-group">
-          <div class="catalog-heading">
-            <h3>Pickaxes</h3>
-            <span id="pickaxeCount" class="catalog-count">0 items</span>
-          </div>
-          <input id="pickaxeCatalogSearch" type="search" maxlength="100" placeholder="Search pickaxes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search pickaxe catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
-          <div id="pickaxeResults" class="catalog-grid"></div>
-        </section>
-        <section class="catalog-group">
-          <div class="catalog-heading"><h3>Shoes</h3><span id="shoesCount" class="catalog-count">0 items</span></div>
-          <input id="shoesCatalogSearch" type="search" maxlength="100" placeholder="Search shoes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search shoes catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
-          <div id="shoesResults" class="catalog-grid"></div>
-        </section>
-        <section class="catalog-group">
-          <div class="catalog-heading"><h3>Emotes</h3><span id="emoteCount" class="catalog-count">0 items</span></div>
-          <input id="emoteCatalogSearch" type="search" maxlength="100" placeholder="Search emotes by name, ID, rarity, or description…" autocomplete="off" aria-label="Search emote catalog" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit">
-          <div id="emoteResults" class="catalog-grid"></div>
-        </section>
-      </section>
-
-      <section class="cosmetic-manager">
-        <div class="topline"><div><h2>Cosmetic Manager</h2><div class="sub">Upload new cosmetics directly to the live game catalog. No game republish required.</div></div></div>
-        <div class="notice">Upload transparent PNG files at native game sizes or 10× artwork, or Photopea-compatible SVG files with embedded PNG artwork. SVG scripts, external images, and unsafe content are blocked. Skin files: head 46×46 or 460×460, hand 20×20 or 200×200, foot 28×14 or 280×140. Pickaxe: 90×60 or 900×600. Shoes: 28×14 or 280×140. Emote: 128×128 or 1280×1280.</div>
-        <div class="cosmetic-actions"><button id="showSkinForm" type="button">＋ Add skin</button><button id="showPickaxeForm" type="button" class="secondary">＋ Add pickaxe</button><button id="showEmoteForm" type="button" class="secondary">＋ Add emote</button><button id="showShoesForm" type="button" class="secondary">＋ Add shoes</button></div>
-        <form id="skinUploadForm" class="cosmetic-form hidden">
-          <h3>Add a skin</h3>
-          <div class="form-grid">
-            <label class="field">Skin name<input id="skinName" maxlength="60" required placeholder="e.g. Shadow Striker"></label>
-            <label class="field">Rarity<select id="skinRarity"></select></label>
-            <label class="field">Price in coins<input id="skinPrice" type="number" min="0" max="1000000" step="1" required></label>
-            <label class="field">Description<textarea id="skinDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Head PNG/SVG — 460 × 460 px<input id="skinHeadFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 46 × 46 px or draw at 460 × 460 px (downsized with sharpening)</span></label>
-            <label class="field">Hand PNG/SVG — 200 × 200 px<input id="skinHandFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 20 × 20 px or draw at 200 × 200 px (downsized with sharpening)</span></label>
-            <label class="field">Foot PNG/SVG — 280 × 140 px<input id="skinFootFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 28 × 14 px or draw at 280 × 140 px (downsized with sharpening)</span></label>
-          </div>
-          <div class="upload-help">The ID and filenames are generated automatically from the skin name.</div>
-          <div class="cosmetic-actions"><button id="publishSkinBtn" type="submit">Upload and publish skin</button><button type="button" class="secondary" data-close-form="skinUploadForm">Cancel</button></div>
-          <div id="skinUploadStatus" class="status" aria-live="polite"></div>
-        </form>
-        <form id="pickaxeUploadForm" class="cosmetic-form hidden">
-          <h3>Add a pickaxe</h3>
-          <div class="form-grid">
-            <label class="field">Pickaxe name<input id="pickaxeName" maxlength="60" required placeholder="e.g. Shadow Pickaxe"></label>
-            <label class="field">Rarity<select id="pickaxeRarity"></select></label>
-            <label class="field">Price in coins<input id="pickaxePrice" type="number" min="0" max="1000000" step="1" required></label>
-            <label class="field">Description<textarea id="pickaxeDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Pickaxe PNG/SVG — 900 × 600 px<input id="pickaxeFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 90 × 60 px or draw at 900 × 600 px (downsized with sharpening); pointing right, grip at left-middle</span></label>
-          </div>
-          <div class="upload-help">The ID and filename are generated automatically from the pickaxe name.</div>
-          <div class="cosmetic-actions"><button id="publishPickaxeBtn" type="submit">Upload and publish pickaxe</button><button type="button" class="secondary" data-close-form="pickaxeUploadForm">Cancel</button></div>
-          <div id="pickaxeUploadStatus" class="status" aria-live="polite"></div>
-        </form>
-        <form id="shoesUploadForm" class="cosmetic-form hidden">
-          <h3>Add shoes</h3>
-          <div class="form-grid">
-            <label class="field">Shoes name<input id="shoesName" maxlength="60" required placeholder="e.g. Neon Kicks"></label>
-            <label class="field">Rarity<select id="shoesRarity"></select></label>
-            <label class="field">Price in coins<input id="shoesPrice" type="number" min="0" max="1000000" step="1" required></label>
-            <label class="field">Description<textarea id="shoesDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea></label>
-            <label class="field">Shoes PNG/SVG — 280 × 140 px<input id="shoesFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 28 × 14 px or draw at 280 × 140 px (downsized with sharpening). Transparent background recommended.</span></label>
-          </div>
-          <div class="upload-help">The shoes image is applied over both feet. ID and filename are generated automatically.</div>
-          <div class="cosmetic-actions"><button id="publishShoesBtn" type="submit">Upload and publish shoes</button><button type="button" class="secondary" data-close-form="shoesUploadForm">Cancel</button></div>
-          <div id="shoesUploadStatus" class="status" aria-live="polite"></div>
-        </form>
-        <form id="emoteUploadForm" class="cosmetic-form hidden">
-          <h3>Add an emote</h3>
-          <div class="form-grid">
-            <label class="field">Emote name<input id="emoteName" maxlength="60" required placeholder="e.g. GG"></label>
-            <label class="field">Rarity<select id="emoteRarity"></select></label>
-            <label class="field">Price in coins<input id="emotePrice" type="number" min="0" max="1000000" step="1" required></label>
-            <label class="field">Description<textarea id="emoteDescription" maxlength="300" placeholder="Optional emote description"></textarea></label>
-            <label class="field">Emote PNG/SVG — 1280 × 1280 px<input id="emoteFile" class="file-input" type="file" accept="image/png,image/svg+xml" required><span class="dimension">Upload 128 × 128 px or draw at 1280 × 1280 px (downsized with sharpening). Transparent background recommended.</span></label>
-          </div>
-          <div class="upload-help">Emote prices default to 25% of skin prices. The ID and filename are generated automatically.</div>
-          <div class="cosmetic-actions"><button id="publishEmoteBtn" type="submit">Upload and publish emote</button><button type="button" class="secondary" data-close-form="emoteUploadForm">Cancel</button></div>
-          <div id="emoteUploadStatus" class="status" aria-live="polite"></div>
-        </form>
-      </section>
-
-
-      <section class="cosmetic-manager" id="itemShopManager">
-        <div class="topline"><div><h2>Rotating Item Shop</h2><div class="sub">The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="refreshForcedShopBtn" class="secondary" type="button">Refresh schedule</button><button id="forceShopResetBtn" type="button">Force shop reset now</button></div></div>
-        <form id="forceShopForm" class="cosmetic-form">
-          <div class="form-grid">
-            <label class="field">Cosmetic to feature
-              <input id="forceShopCosmeticSearch" type="search" maxlength="100" placeholder="Search cosmetics by name, ID, type, or rarity…" autocomplete="off" aria-label="Search cosmetics to force into the shop">
-              <select id="forceShopCosmetic" required></select>
-            </label>
-            <label class="field">Days in shop<input id="forceShopDays" type="number" min="1" max="30" value="1" required><span class="dimension">Default is 1 day. Choose 1–30 days.</span></label>
-          </div>
-          <div class="cosmetic-actions"><button id="forceShopSubmit" type="submit">Force into Item Shop</button></div>
-          <div id="forceShopStatus" class="status" aria-live="polite"></div><div class="dimension">A manual reset immediately generates a new random shop for everyone. The normal daily reset remains scheduled for 00:00 UTC.</div>
-        </form>
-        <h3 style="margin:18px 0 8px">Forced shop items</h3>
-        <div id="forcedShopList" class="catalog-grid"><div class="empty">Loading forced items…</div></div>
-      </section>
-
-      <section class="cosmetic-manager" id="refundManagement">
-        <div class="topline"><div><h2>Refund Management</h2><div class="sub">Restore one player's refund eligibility for one specific cosmetic. This does not issue a refund.</div></div></div>
-        <form id="refundUnlockSearchForm" class="row"><input id="refundUnlockSearch" type="search" maxlength="50" placeholder="Search player username…" autocomplete="off"><button type="submit">Find player</button></form>
-        <div id="refundUnlockPlayerStatus" class="status" aria-live="polite"></div>
-        <div class="form-grid" style="margin-top:10px">
-          <label class="field">Player account<select id="refundUnlockPlayer" required><option value="">Search for a player first</option></select></label>
-          <label class="field">Search cosmetic<input id="refundUnlockCosmeticSearch" type="search" maxlength="100" placeholder="Search cosmetic name, ID, type, or rarity…" autocomplete="off"></label>
-          <label class="field">Cosmetic<select id="refundUnlockCosmetic" required><option value="">Loading cosmetics…</option></select></label>
-        </div>
-        <div class="cosmetic-actions"><button id="refundUnlockBtn" type="button">Restore refund eligibility</button></div>
-        <div id="refundUnlockStatus" class="status" aria-live="polite"></div>
-      </section>
-
-      <section class="cosmetic-manager" id="bannedManager"><div class="topline"><div><h2>Banned players</h2><div class="sub">Active bans. They update automatically.</div></div></div><div id="bannedStatus" class="status" aria-live="polite"></div><div id="bannedList" class="catalog-grid"></div></section>
-      <section class="cosmetic-manager" id="broadcastManager">
-        <div class="topline"><div><h2>Notifications, announcements & compensation</h2><div class="sub">Send an in-game announcement or patch notes to every player account. Optionally grant coins to every account at the same time.</div></div></div>
-        <form id="broadcastForm" class="cosmetic-form">
-          <div class="form-grid">
-            <label class="field">Announcement title<input id="broadcastTitle" maxlength="100" required placeholder="e.g. Update 1.2 — Patch Notes"></label>
-            <label class="field">Coins to grant each account<input id="broadcastCoins" type="number" min="0" max="1000000" step="1" value="0" required><span class="dimension">Use 0 for no compensation. The amount is granted to every existing player profile.</span></label>
-            <label class="field" style="grid-column:1/-1">Message / patch notes<textarea id="broadcastMessage" maxlength="4000" required placeholder="Write your announcement, patch notes, or compensation explanation..."></textarea></label>
-            <label class="field">Optional announcement image<input id="broadcastImage" type="file" accept="image/png,image/jpeg,image/webp"><span class="dimension">PNG, JPG, or WebP · max 4 MB</span></label>
-          </div>
-          <div class="cosmetic-actions"><button id="broadcastSendBtn" type="submit">Send to all players</button></div>
-          <div id="broadcastStatus" class="status" aria-live="polite"></div>
-        </form>
-        <h3 style="margin:20px 0 8px">Previously sent announcements</h3>
-        <div id="announcementHistory" class="catalog-grid"><div class="empty">Loading announcements…</div></div>
-      </section>
-      <div class="notice">
-        Administrative changes are applied directly through protected Supabase functions and recorded in the audit log. Double-check the selected player before applying a change.
+      <input aria-label="Search skin catalog" autocomplete="off" id="skinCatalogSearch" maxlength="100" placeholder="Search skins by name, ID, rarity, or description…" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit" type="search"/>
+      <div class="catalog-grid" id="skinResults">
       </div>
+     </section>
+     <section class="catalog-group">
+      <div class="catalog-heading">
+       <h3>
+        Pickaxes
+       </h3>
+       <span class="catalog-count" id="pickaxeCount">
+        0 items
+       </span>
+      </div>
+      <input aria-label="Search pickaxe catalog" autocomplete="off" id="pickaxeCatalogSearch" maxlength="100" placeholder="Search pickaxes by name, ID, rarity, or description…" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit" type="search"/>
+      <div class="catalog-grid" id="pickaxeResults">
+      </div>
+     </section>
+     <section class="catalog-group">
+      <div class="catalog-heading">
+       <h3>
+        Shoes
+       </h3>
+       <span class="catalog-count" id="shoesCount">
+        0 items
+       </span>
+      </div>
+      <input aria-label="Search shoes catalog" autocomplete="off" id="shoesCatalogSearch" maxlength="100" placeholder="Search shoes by name, ID, rarity, or description…" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit" type="search"/>
+      <div class="catalog-grid" id="shoesResults">
+      </div>
+     </section>
+     <section class="catalog-group">
+      <div class="catalog-heading">
+       <h3>
+        Emotes
+       </h3>
+       <span class="catalog-count" id="emoteCount">
+        0 items
+       </span>
+      </div>
+      <input aria-label="Search emote catalog" autocomplete="off" id="emoteCatalogSearch" maxlength="100" placeholder="Search emotes by name, ID, rarity, or description…" style="width:100%;margin:10px 0;background:#10151e;border:1px solid #394456;border-radius:9px;color:var(--text);padding:11px;font:inherit" type="search"/>
+      <div class="catalog-grid" id="emoteResults">
+      </div>
+     </section>
     </section>
-
-    <footer>HITTA CLIP Admin · Access is checked by Supabase, not just by this page.</footer>
+    <section class="cosmetic-manager">
+     <div class="topline">
+      <div>
+       <h2>
+        Cosmetic Manager
+       </h2>
+       <div class="sub">
+        Upload new cosmetics directly to the live game catalog. No game republish required.
+       </div>
+      </div>
+     </div>
+     <div class="notice">
+      Upload transparent PNG files at native game sizes or 10× artwork, or Photopea-compatible SVG files with embedded PNG artwork. SVG scripts, external images, and unsafe content are blocked. Skin files: head 46×46 or 460×460, hand 20×20 or 200×200, foot 28×14 or 280×140. Pickaxe: 90×60 or 900×600. Shoes: 28×14 or 280×140. Emote: 128×128 or 1280×1280.
+     </div>
+     <div class="cosmetic-actions">
+      <button id="showSkinForm" type="button">
+       ＋ Add skin
+      </button>
+      <button class="secondary" id="showPickaxeForm" type="button">
+       ＋ Add pickaxe
+      </button>
+      <button class="secondary" id="showEmoteForm" type="button">
+       ＋ Add emote
+      </button>
+      <button class="secondary" id="showShoesForm" type="button">
+       ＋ Add shoes
+      </button>
+     </div>
+     <form class="cosmetic-form hidden" id="skinUploadForm">
+      <h3>
+       Add a skin
+      </h3>
+      <div class="form-grid">
+       <label class="field">
+        Skin name
+        <input id="skinName" maxlength="60" placeholder="e.g. Shadow Striker" required=""/>
+       </label>
+       <label class="field">
+        Rarity
+        <select id="skinRarity">
+        </select>
+       </label>
+       <label class="field">
+        Price in coins
+        <input id="skinPrice" max="1000000" min="0" required="" step="1" type="number"/>
+       </label>
+       <label class="field">
+        Description
+        <textarea id="skinDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea>
+       </label>
+       <label class="field">
+        Head PNG/SVG — 460 × 460 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="skinHeadFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 46 × 46 px or draw at 460 × 460 px (downsized with sharpening)
+        </span>
+       </label>
+       <label class="field">
+        Hand PNG/SVG — 200 × 200 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="skinHandFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 20 × 20 px or draw at 200 × 200 px (downsized with sharpening)
+        </span>
+       </label>
+       <label class="field">
+        Foot PNG/SVG — 280 × 140 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="skinFootFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 28 × 14 px or draw at 280 × 140 px (downsized with sharpening)
+        </span>
+       </label>
+      </div>
+      <div class="upload-help">
+       The ID and filenames are generated automatically from the skin name.
+      </div>
+      <div class="cosmetic-actions">
+       <button id="publishSkinBtn" type="submit">
+        Upload and publish skin
+       </button>
+       <button class="secondary" data-close-form="skinUploadForm" type="button">
+        Cancel
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="skinUploadStatus">
+      </div>
+     </form>
+     <form class="cosmetic-form hidden" id="pickaxeUploadForm">
+      <h3>
+       Add a pickaxe
+      </h3>
+      <div class="form-grid">
+       <label class="field">
+        Pickaxe name
+        <input id="pickaxeName" maxlength="60" placeholder="e.g. Shadow Pickaxe" required=""/>
+       </label>
+       <label class="field">
+        Rarity
+        <select id="pickaxeRarity">
+        </select>
+       </label>
+       <label class="field">
+        Price in coins
+        <input id="pickaxePrice" max="1000000" min="0" required="" step="1" type="number"/>
+       </label>
+       <label class="field">
+        Description
+        <textarea id="pickaxeDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea>
+       </label>
+       <label class="field">
+        Pickaxe PNG/SVG — 900 × 600 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="pickaxeFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 90 × 60 px or draw at 900 × 600 px (downsized with sharpening); pointing right, grip at left-middle
+        </span>
+       </label>
+      </div>
+      <div class="upload-help">
+       The ID and filename are generated automatically from the pickaxe name.
+      </div>
+      <div class="cosmetic-actions">
+       <button id="publishPickaxeBtn" type="submit">
+        Upload and publish pickaxe
+       </button>
+       <button class="secondary" data-close-form="pickaxeUploadForm" type="button">
+        Cancel
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="pickaxeUploadStatus">
+      </div>
+     </form>
+     <form class="cosmetic-form hidden" id="shoesUploadForm">
+      <h3>
+       Add shoes
+      </h3>
+      <div class="form-grid">
+       <label class="field">
+        Shoes name
+        <input id="shoesName" maxlength="60" placeholder="e.g. Neon Kicks" required=""/>
+       </label>
+       <label class="field">
+        Rarity
+        <select id="shoesRarity">
+        </select>
+       </label>
+       <label class="field">
+        Price in coins
+        <input id="shoesPrice" max="1000000" min="0" required="" step="1" type="number"/>
+       </label>
+       <label class="field">
+        Description
+        <textarea id="shoesDescription" maxlength="300" placeholder="Optional cosmetic description"></textarea>
+       </label>
+       <label class="field">
+        Shoes PNG/SVG — 280 × 140 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="shoesFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 28 × 14 px or draw at 280 × 140 px (downsized with sharpening). Transparent background recommended.
+        </span>
+       </label>
+      </div>
+      <div class="upload-help">
+       The shoes image is applied over both feet. ID and filename are generated automatically.
+      </div>
+      <div class="cosmetic-actions">
+       <button id="publishShoesBtn" type="submit">
+        Upload and publish shoes
+       </button>
+       <button class="secondary" data-close-form="shoesUploadForm" type="button">
+        Cancel
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="shoesUploadStatus">
+      </div>
+     </form>
+     <form class="cosmetic-form hidden" id="emoteUploadForm">
+      <h3>
+       Add an emote
+      </h3>
+      <div class="form-grid">
+       <label class="field">
+        Emote name
+        <input id="emoteName" maxlength="60" placeholder="e.g. GG" required=""/>
+       </label>
+       <label class="field">
+        Rarity
+        <select id="emoteRarity">
+        </select>
+       </label>
+       <label class="field">
+        Price in coins
+        <input id="emotePrice" max="1000000" min="0" required="" step="1" type="number"/>
+       </label>
+       <label class="field">
+        Description
+        <textarea id="emoteDescription" maxlength="300" placeholder="Optional emote description"></textarea>
+       </label>
+       <label class="field">
+        Emote PNG/SVG — 1280 × 1280 px
+        <input accept="image/png,image/svg+xml" class="file-input" id="emoteFile" required="" type="file"/>
+        <span class="dimension">
+         Upload 128 × 128 px or draw at 1280 × 1280 px (downsized with sharpening). Transparent background recommended.
+        </span>
+       </label>
+      </div>
+      <div class="upload-help">
+       Emote prices default to 25% of skin prices. The ID and filename are generated automatically.
+      </div>
+      <div class="cosmetic-actions">
+       <button id="publishEmoteBtn" type="submit">
+        Upload and publish emote
+       </button>
+       <button class="secondary" data-close-form="emoteUploadForm" type="button">
+        Cancel
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="emoteUploadStatus">
+      </div>
+     </form>
+    </section>
+    <section class="cosmetic-manager" id="itemShopManager">
+     <div class="topline">
+      <div>
+       <h2>
+        Rotating Item Shop
+       </h2>
+       <div class="sub">
+        The shop refreshes daily at 00:00 UTC (6:00 PM CST / 7:00 PM CDT). Players see the reset in their local time.
+       </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+       <button class="secondary" id="refreshForcedShopBtn" type="button">
+        Refresh schedule
+       </button>
+       <button id="forceShopResetBtn" type="button">
+        Force shop reset now
+       </button>
+      </div>
+     </div>
+     <form class="cosmetic-form" id="forceShopForm">
+      <div class="form-grid">
+       <label class="field">
+        Cosmetic to feature
+        <input aria-label="Search cosmetics to force into the shop" autocomplete="off" id="forceShopCosmeticSearch" maxlength="100" placeholder="Search cosmetics by name, ID, type, or rarity…" type="search"/>
+        <select id="forceShopCosmetic" required="">
+        </select>
+       </label>
+       <label class="field">
+        Days in shop
+        <input id="forceShopDays" max="30" min="1" required="" type="number" value="1"/>
+        <span class="dimension">
+         Default is 1 day. Choose 1–30 days.
+        </span>
+       </label>
+      </div>
+      <div class="cosmetic-actions">
+       <button id="forceShopSubmit" type="submit">
+        Force into Item Shop
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="forceShopStatus">
+      </div>
+      <div class="dimension">
+       A manual reset immediately generates a new random shop for everyone. The normal daily reset remains scheduled for 00:00 UTC.
+      </div>
+     </form>
+     <h3 style="margin:18px 0 8px">
+      Forced shop items
+     </h3>
+     <div class="catalog-grid" id="forcedShopList">
+      <div class="empty">
+       Loading forced items…
+      </div>
+     </div>
+    </section>
+    <section class="cosmetic-manager" id="refundManagement">
+     <div class="topline">
+      <div>
+       <h2>
+        Refund Management
+       </h2>
+       <div class="sub">
+        Restore one player's refund eligibility for one specific cosmetic. This does not issue a refund.
+       </div>
+      </div>
+     </div>
+     <form class="row" id="refundUnlockSearchForm">
+      <input autocomplete="off" id="refundUnlockSearch" maxlength="50" placeholder="Search player username…" type="search"/>
+      <button type="submit">
+       Find player
+      </button>
+     </form>
+     <div aria-live="polite" class="status" id="refundUnlockPlayerStatus">
+     </div>
+     <div class="form-grid" style="margin-top:10px">
+      <label class="field">
+       Player account
+       <select id="refundUnlockPlayer" required="">
+        <option value="">
+         Search for a player first
+        </option>
+       </select>
+      </label>
+      <label class="field">
+       Search cosmetic
+       <input autocomplete="off" id="refundUnlockCosmeticSearch" maxlength="100" placeholder="Search cosmetic name, ID, type, or rarity…" type="search"/>
+      </label>
+      <label class="field">
+       Cosmetic
+       <select id="refundUnlockCosmetic" required="">
+        <option value="">
+         Loading cosmetics…
+        </option>
+       </select>
+      </label>
+     </div>
+     <div class="cosmetic-actions">
+      <button id="refundUnlockBtn" type="button">
+       Restore refund eligibility
+      </button>
+     </div>
+     <div aria-live="polite" class="status" id="refundUnlockStatus">
+     </div>
+    </section>
+    <section class="cosmetic-manager" id="bannedManager">
+     <div class="topline">
+      <div>
+       <h2>
+        Banned players
+       </h2>
+       <div class="sub">
+        Active bans. They update automatically.
+       </div>
+      </div>
+     </div>
+     <div aria-live="polite" class="status" id="bannedStatus">
+     </div>
+     <div class="catalog-grid" id="bannedList">
+     </div>
+    </section>
+    <section class="cosmetic-manager" id="broadcastManager">
+     <div class="topline">
+      <div>
+       <h2>
+        Notifications, announcements &amp; compensation
+       </h2>
+       <div class="sub">
+        Send an in-game announcement or patch notes to every player account. Optionally grant coins to every account at the same time.
+       </div>
+      </div>
+     </div>
+     <form class="cosmetic-form" id="broadcastForm">
+      <div class="form-grid">
+       <label class="field">
+        Announcement title
+        <input id="broadcastTitle" maxlength="100" placeholder="e.g. Update 1.2 — Patch Notes" required=""/>
+       </label>
+       <label class="field">
+        Coins to grant each account
+        <input id="broadcastCoins" max="1000000" min="0" required="" step="1" type="number" value="0"/>
+        <span class="dimension">
+         Use 0 for no compensation. The amount is granted to every existing player profile.
+        </span>
+       </label>
+       <label class="field" style="grid-column:1/-1">
+        Message / patch notes
+        <textarea id="broadcastMessage" maxlength="4000" placeholder="Write your announcement, patch notes, or compensation explanation..." required=""></textarea>
+       </label>
+       <label class="field">
+        Optional announcement image
+        <input accept="image/png,image/jpeg,image/webp" id="broadcastImage" type="file"/>
+        <span class="dimension">
+         PNG, JPG, or WebP · max 4 MB
+        </span>
+       </label>
+      </div>
+      <div class="cosmetic-actions">
+       <button id="broadcastSendBtn" type="submit">
+        Send to all players
+       </button>
+      </div>
+      <div aria-live="polite" class="status" id="broadcastStatus">
+      </div>
+     </form>
+     <h3 style="margin:20px 0 8px">
+      Previously sent announcements
+     </h3>
+     <div class="catalog-grid" id="announcementHistory">
+      <div class="empty">
+       Loading announcements…
+      </div>
+     </div>
+    </section>
+    <div class="notice">
+     Administrative changes are applied directly through protected Supabase functions and recorded in the audit log. Double-check the selected player before applying a change.
+    </div>
+   </section>
+   <footer>
+    HITTA CLIP Admin · Access is checked by Supabase, not just by this page.
+   </footer>
   </main>
-
-<script>
-(() => {
+  <script>
+   (() => {
   const SUPABASE_URL = 'https://jsvwlikgojpdpnwdphei.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_poJvxl5_FanNyGe2bA7J7g_-tK75X8F';
   const REDIRECT_URL = 'https://hittaclipdevteam.github.io/hitta-clip-auth/admin.html';
@@ -1372,16 +1724,30 @@
   
   initialize();
 })();
-</script>
-
-<style id="immersive-dialog-styles">
-.immersive-dialog-backdrop{position:fixed;inset:0;z-index:999999;background:rgba(3,7,15,.78);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}.immersive-dialog-backdrop.open{display:flex}.immersive-dialog{width:min(460px,100%);background:#171e2b;color:#f7f9fc;border:1px solid #46536b;border-radius:18px;padding:22px;box-shadow:0 24px 90px #000b;font:inherit}.immersive-dialog h2{font-size:20px;margin:0 0 10px}.immersive-dialog p{white-space:pre-wrap;color:#c3ccda;line-height:1.5;margin:0 0 16px}.immersive-dialog input{box-sizing:border-box;width:100%;padding:12px;border-radius:9px;border:1px solid #52617a;background:#0d1420;color:white;font:inherit;margin:0 0 16px}.immersive-dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.immersive-dialog-actions button{border:0;border-radius:9px;padding:11px 16px;font-weight:700;cursor:pointer;background:#39465c;color:#fff}.immersive-dialog-actions button.primary{background:#397ff0}.immersive-dialog-actions button.danger{background:#a52828}
-</style>
-<div class="immersive-dialog-backdrop" id="immersiveDialog" aria-hidden="true"><section class="immersive-dialog" role="dialog" aria-modal="true" aria-labelledby="immersiveDialogTitle"><h2 id="immersiveDialogTitle">Confirm</h2><p id="immersiveDialogMessage"></p><input id="immersiveDialogInput" style="display:none" autocomplete="off"><div class="immersive-dialog-actions"><button type="button" id="immersiveDialogCancel">Cancel</button><button type="button" class="primary" id="immersiveDialogOK">Continue</button></div></section></div>
-<script id="immersive-dialog-controller">
-(()=>{const root=document.getElementById('immersiveDialog');if(!root)return;const title=document.getElementById('immersiveDialogTitle'),message=document.getElementById('immersiveDialogMessage'),input=document.getElementById('immersiveDialogInput'),cancel=document.getElementById('immersiveDialogCancel'),ok=document.getElementById('immersiveDialogOK');let finish=null;function ask(kind,text,initial=''){return new Promise(resolve=>{finish=resolve;title.textContent=kind==='prompt'?'Enter a value':kind==='alert'?'Notice':'Confirm action';message.textContent=String(text??'');input.style.display=kind==='prompt'?'block':'none';input.value=kind==='prompt'?String(initial??''):'';cancel.style.display=kind==='alert'?'none':'';ok.textContent=kind==='alert'?'OK':kind==='prompt'?'Save':'Continue';root.classList.add('open');root.setAttribute('aria-hidden','false');if(kind==='prompt')input.focus();else ok.focus();});}function close(value){if(!finish)return;const f=finish;finish=null;root.classList.remove('open');root.setAttribute('aria-hidden','true');f(value);}cancel.addEventListener('click',()=>close(false));ok.addEventListener('click',()=>close(input.style.display==='none'?true:input.value));input.addEventListener('keydown',e=>{if(e.key==='Enter')close(input.value);if(e.key==='Escape')close(null)});root.addEventListener('click',e=>{if(e.target===root)close(false)});window.immersiveConfirm=t=>ask('confirm',t);window.immersivePrompt=(t,v='')=>ask('prompt',t,v);window.immersiveAlert=t=>ask('alert',t);})();
-</script>
-
-
-</body>
+  </script>
+  <style id="immersive-dialog-styles">
+   .immersive-dialog-backdrop{position:fixed;inset:0;z-index:999999;background:rgba(3,7,15,.78);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}.immersive-dialog-backdrop.open{display:flex}.immersive-dialog{width:min(460px,100%);background:#171e2b;color:#f7f9fc;border:1px solid #46536b;border-radius:18px;padding:22px;box-shadow:0 24px 90px #000b;font:inherit}.immersive-dialog h2{font-size:20px;margin:0 0 10px}.immersive-dialog p{white-space:pre-wrap;color:#c3ccda;line-height:1.5;margin:0 0 16px}.immersive-dialog input{box-sizing:border-box;width:100%;padding:12px;border-radius:9px;border:1px solid #52617a;background:#0d1420;color:white;font:inherit;margin:0 0 16px}.immersive-dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.immersive-dialog-actions button{border:0;border-radius:9px;padding:11px 16px;font-weight:700;cursor:pointer;background:#39465c;color:#fff}.immersive-dialog-actions button.primary{background:#397ff0}.immersive-dialog-actions button.danger{background:#a52828}
+  </style>
+  <div aria-hidden="true" class="immersive-dialog-backdrop" id="immersiveDialog">
+   <section aria-labelledby="immersiveDialogTitle" aria-modal="true" class="immersive-dialog" role="dialog">
+    <h2 id="immersiveDialogTitle">
+     Confirm
+    </h2>
+    <p id="immersiveDialogMessage">
+    </p>
+    <input autocomplete="off" id="immersiveDialogInput" style="display:none"/>
+    <div class="immersive-dialog-actions">
+     <button id="immersiveDialogCancel" type="button">
+      Cancel
+     </button>
+     <button class="primary" id="immersiveDialogOK" type="button">
+      Continue
+     </button>
+    </div>
+   </section>
+  </div>
+  <script id="immersive-dialog-controller">
+   (()=>{const root=document.getElementById('immersiveDialog');if(!root)return;const title=document.getElementById('immersiveDialogTitle'),message=document.getElementById('immersiveDialogMessage'),input=document.getElementById('immersiveDialogInput'),cancel=document.getElementById('immersiveDialogCancel'),ok=document.getElementById('immersiveDialogOK');let finish=null;function ask(kind,text,initial=''){return new Promise(resolve=>{finish=resolve;title.textContent=kind==='prompt'?'Enter a value':kind==='alert'?'Notice':'Confirm action';message.textContent=String(text??'');input.style.display=kind==='prompt'?'block':'none';input.value=kind==='prompt'?String(initial??''):'';cancel.style.display=kind==='alert'?'none':'';ok.textContent=kind==='alert'?'OK':kind==='prompt'?'Save':'Continue';root.classList.add('open');root.setAttribute('aria-hidden','false');if(kind==='prompt')input.focus();else ok.focus();});}function close(value){if(!finish)return;const f=finish;finish=null;root.classList.remove('open');root.setAttribute('aria-hidden','true');f(value);}cancel.addEventListener('click',()=>close(false));ok.addEventListener('click',()=>close(input.style.display==='none'?true:input.value));input.addEventListener('keydown',e=>{if(e.key==='Enter')close(input.value);if(e.key==='Escape')close(null)});root.addEventListener('click',e=>{if(e.target===root)close(false)});window.immersiveConfirm=t=>ask('confirm',t);window.immersivePrompt=(t,v='')=>ask('prompt',t,v);window.immersiveAlert=t=>ask('alert',t);})();
+  </script>
+ </body>
 </html>
