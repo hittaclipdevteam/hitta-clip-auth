@@ -446,6 +446,45 @@
       <div class="status editStatus" aria-live="polite"></div>`;
     card.append(controls);
 
+        const giftBox = document.createElement('section');
+    giftBox.className = 'editbox';
+    giftBox.innerHTML = `
+      <strong>Send gift</strong>
+      <div class="sub">Free gift. The player sees "an admin has sent you a gift" with your optional message.</div>
+      <div class="editgrid">
+        <label>Cosmetic<select class="giftItem"></select></label>
+        <label style="grid-column:1/-1">Message (optional, max 200 characters)<input class="giftMsg" type="text" maxlength="200" placeholder="e.g. Thanks for playing!"></label>
+      </div>
+      <div class="actions"><button type="button" class="giftBtn">Send gift</button></div>
+      <div class="status giftStatus" aria-live="polite"></div>`;
+    const giftSelect = giftBox.querySelector('.giftItem');
+    catalogItems
+      .filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type) && i.active !== false)
+      .forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}`; giftSelect.append(o); });
+    giftBox.querySelector('.giftBtn').addEventListener('click', async () => {
+      const [type, ...rest] = giftSelect.value.split(':');
+      const id = rest.join(':');
+      const msgInput = giftBox.querySelector('.giftMsg');
+      const statusEl = giftBox.querySelector('.giftStatus');
+      if (!id) return statusText(statusEl, 'Choose a cosmetic first.', true);
+      if (!(await immersiveConfirm(`Send ${giftSelect.selectedOptions[0].textContent} to ${player.username || 'this player'} as a free gift?`))) return;
+      const btn = giftBox.querySelector('.giftBtn'); btn.disabled = true; statusText(statusEl, 'Sending gift…');
+      try {
+        const { error } = await sb.rpc('hitta_admin_send_gift', {
+          p_target_user_id: player.user_id,
+          p_item_type: type,
+          p_item_id: id,
+          p_message: msgInput.value.trim() || null
+        });
+        if (error) throw error;
+        statusText(statusEl, 'Gift sent. It pops up on their screen right away.');
+        msgInput.value = '';
+      } catch (error) {
+        statusText(statusEl, error.message || 'Could not send gift.', true);
+      } finally { btn.disabled = false; }
+    });
+    card.append(giftBox);
+
     const typeSelect = controls.querySelector('.itemType');
     const itemSelect = controls.querySelector('.itemId');
     const itemSearch = controls.querySelector('.itemSearch');
