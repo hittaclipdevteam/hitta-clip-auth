@@ -1081,9 +1081,25 @@
         buttons.forEach(button => button.disabled = false);
       }
     };
-    controls.querySelector('.unlockAllBtn').addEventListener('click', async () => {
-      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe' || item.type === 'emote').length;
-      if (await immersiveConfirm(`Unlock all ${count} active catalog cosmetics for ${player.username || 'this player'}?`)) runBulkAction('unlock_all');
+    // Unlock selected cosmetic categories using the same polished modal as Remove cosmetics only.
+    controls.querySelector('.unlockAllBtn').addEventListener('click', () => {
+      const modal=document.createElement('div');modal.className='admin-cosmetic-modal';
+      modal.innerHTML=`<div class="admin-cosmetic-modal-card" role="dialog" aria-modal="true" aria-labelledby="unlockCosmeticTitle"><h3 id="unlockCosmeticTitle">Unlock cosmetics</h3><p class="removeCosmeticsTarget unlockCosmeticsTarget"></p><label class="removeCosmeticsSelectAllRow"><input type="checkbox" class="unlockCosmeticsSelectAll"><strong>Select all categories</strong></label><div class="admin-cosmetic-options"><label><input type="checkbox" value="skin" class="unlockCosmeticType"> Skins</label><label><input type="checkbox" value="pickaxe" class="unlockCosmeticType"> Pickaxes</label><label><input type="checkbox" value="shoes" class="unlockCosmeticType"> Shoes</label><label><input type="checkbox" value="emote" class="unlockCosmeticType"> Emotes</label></div><div class="status removeCosmeticsModalStatus unlockCosmeticsModalStatus"></div><div class="admin-cosmetic-modal-actions"><button type="button" class="unlockCosmeticsConfirm">Continue</button><button type="button" class="unlockCosmeticsCancel secondary">Cancel</button></div></div>`;
+      document.body.append(modal);
+      modal.querySelector('.unlockCosmeticsTarget').textContent=`Unlocks all active catalog cosmetics in the selected categories for ${player.username||'this player'}. Existing cosmetics and account progression are preserved.`;
+      const boxes=[...modal.querySelectorAll('.unlockCosmeticType')],all=modal.querySelector('.unlockCosmeticsSelectAll'),close=()=>modal.remove();
+      all.addEventListener('change',()=>boxes.forEach(cb=>cb.checked=all.checked));
+      boxes.forEach(cb=>cb.addEventListener('change',()=>all.checked=boxes.every(x=>x.checked)));
+      modal.querySelector('.unlockCosmeticsCancel').addEventListener('click',close);
+      modal.addEventListener('click',e=>{if(e.target===modal)close();});
+      modal.querySelector('.unlockCosmeticsConfirm').addEventListener('click',async()=>{
+        const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);
+        if(!selected.length){statusText(modal.querySelector('.unlockCosmeticsModalStatus'),'Select at least one cosmetic category.',true);return;}
+        if(!(await immersiveConfirm(`Unlock all active catalog cosmetics in the selected categories for ${player.username||'this player'}?`)))return;
+        const b=modal.querySelector('.unlockCosmeticsConfirm');b.disabled=true;statusText(modal.querySelector('.unlockCosmeticsModalStatus'),'Unlocking selected cosmetics…');
+        try{const {error}=await sb.rpc('hitta_admin_unlock_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;close();await refreshSearch(player.user_id,`Selected cosmetics unlocked for ${player.username||'player'}.`);}
+        catch(e){statusText(modal.querySelector('.unlockCosmeticsModalStatus'),e.message||'Could not unlock selected cosmetics.',true);b.disabled=false;}
+      });
     });
     controls.querySelector('.removeAllBtn').addEventListener('click', async () => {
       if (!(await immersiveConfirm(`WARNING: This will set ${player.username || 'this player'} to 0 coins, remove all non-starter cosmetics, and reset XP, level, and prestige. This cannot be undone. Continue?`))) return;
