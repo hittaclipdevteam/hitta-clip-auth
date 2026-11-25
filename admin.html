@@ -820,6 +820,7 @@
         <div class="sub">Search by username. Select a friend to remove or restore their gifting lock.</div>
         <label class="field" style="margin-top:10px">Search friends<input class="giftingFriendSearch" type="search" maxlength="50" placeholder="Search friends by username…" autocomplete="off"></label>
         <label class="field" style="margin-top:10px">Friend<select class="giftingFriendSelect"><option value="">Load friends first</option></select></label>
+        <label class="field" style="margin-top:10px;display:flex;align-items:center;gap:8px"><input class="giftingDailyBypass" type="checkbox" style="width:auto"> Also bypass the 3-gifts-per-day limit when removing the lock</label>
         <div class="actions"><button type="button" class="unlockGiftingBtn">Remove gifting lock</button><button type="button" class="lockGiftingBtn secondary">Put gifting lock back</button></div>
         <div class="status giftingLockStatus" aria-live="polite"></div>
       </div>
@@ -830,7 +831,7 @@
     giftBox.className = 'editbox';
     giftBox.innerHTML = `
       <strong>Send gift</strong>
-      <div class="sub">Free gift. Includes active and disabled cosmetics; disabled items are labeled DISABLED. The player sees "an admin has sent you a gift" with your optional message.</div>
+      <div class="sub">Free gift. The player sees "an admin has sent you a gift" with your optional message.</div>
       <div class="editgrid">
         <label>Search gift<input class="giftSearch" type="search" maxlength="100" placeholder="Search by name, ID, type, or rarity…" autocomplete="off"></label>
         <label>Cosmetic<select class="giftItem"></select></label>
@@ -842,13 +843,13 @@
     const giftSelect = giftBox.querySelector('.giftItem');
     const giftSearch = giftBox.querySelector('.giftSearch');
     const giftMatchCount = giftBox.querySelector('.giftMatchCount');
-    const giftCatalog = catalogItems.filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type));
+    const giftCatalog = catalogItems.filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type) && i.active !== false);
     function fillGiftItems() {
       const q = giftSearch.value.trim().toLowerCase();
       const matches = giftCatalog.filter(i => !q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v || '').toLowerCase().includes(q)));
       const previous = giftSelect.value;
       giftSelect.replaceChildren();
-      matches.forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}${i.active === false ? ' · DISABLED' : ''}`; giftSelect.append(o); });
+      matches.forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}`; giftSelect.append(o); });
       if (!matches.length) { const o = document.createElement('option'); o.value = ''; o.disabled = true; o.selected = true; o.textContent = 'No matching cosmetics'; giftSelect.append(o); }
       if (matches.some(i => i.type + ':' + i.id === previous)) giftSelect.value = previous;
       giftMatchCount.textContent = `${matches.length} cosmetic${matches.length === 1 ? '' : 's'} found`;
@@ -878,13 +879,6 @@
         });
         if (error) throw error;
         statusText(statusEl, 'Gift sent. It pops up on their screen right away.');
-        if(!player.owned||typeof player.owned!=='object')player.owned={};
-        if(!Array.isArray(player.owned[type]))player.owned[type]=[];
-        if(!playerAlreadyOwnGift(type,id))player.owned[type].push(id);
-        const ownershipOverride=cosmeticOwnershipOverrides.get(String(player.user_id))||{clearedTypes:[],addedItems:{}};
-        if(!ownershipOverride.addedItems[type])ownershipOverride.addedItems[type]=[];
-        ownershipOverride.addedItems[type].push(id);
-        cosmeticOwnershipOverrides.set(String(player.user_id),ownershipOverride);
         msgInput.value = '';
       } catch (error) {
         statusText(statusEl, error.message || 'Could not send gift.', true);
@@ -1088,25 +1082,9 @@
         buttons.forEach(button => button.disabled = false);
       }
     };
-    // Unlock selected cosmetic categories using the same polished modal as Remove cosmetics only.
-    controls.querySelector('.unlockAllBtn').addEventListener('click', () => {
-      const modal=document.createElement('div');modal.className='admin-cosmetic-modal';
-      modal.innerHTML=`<div class="admin-cosmetic-modal-card" role="dialog" aria-modal="true" aria-labelledby="unlockCosmeticTitle"><h3 id="unlockCosmeticTitle">Unlock cosmetics</h3><p class="removeCosmeticsTarget unlockCosmeticsTarget"></p><label class="removeCosmeticsSelectAllRow"><input type="checkbox" class="unlockCosmeticsSelectAll"><strong>Select all categories</strong></label><div class="admin-cosmetic-options"><label><input type="checkbox" value="skin" class="unlockCosmeticType"> Skins</label><label><input type="checkbox" value="pickaxe" class="unlockCosmeticType"> Pickaxes</label><label><input type="checkbox" value="shoes" class="unlockCosmeticType"> Shoes</label><label><input type="checkbox" value="emote" class="unlockCosmeticType"> Emotes</label></div><div class="status removeCosmeticsModalStatus unlockCosmeticsModalStatus"></div><div class="admin-cosmetic-modal-actions"><button type="button" class="unlockCosmeticsConfirm">Continue</button><button type="button" class="unlockCosmeticsCancel secondary">Cancel</button></div></div>`;
-      document.body.append(modal);
-      modal.querySelector('.unlockCosmeticsTarget').textContent=`Unlocks all catalog cosmetics, including disabled ones, in the selected categories for ${player.username||'this player'}. Existing cosmetics and account progression are preserved.`;
-      const boxes=[...modal.querySelectorAll('.unlockCosmeticType')],all=modal.querySelector('.unlockCosmeticsSelectAll'),close=()=>modal.remove();
-      all.addEventListener('change',()=>boxes.forEach(cb=>cb.checked=all.checked));
-      boxes.forEach(cb=>cb.addEventListener('change',()=>all.checked=boxes.every(x=>x.checked)));
-      modal.querySelector('.unlockCosmeticsCancel').addEventListener('click',close);
-      modal.addEventListener('click',e=>{if(e.target===modal)close();});
-      modal.querySelector('.unlockCosmeticsConfirm').addEventListener('click',async()=>{
-        const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);
-        if(!selected.length){statusText(modal.querySelector('.unlockCosmeticsModalStatus'),'Select at least one cosmetic category.',true);return;}
-        if(!(await immersiveConfirm(`Unlock all active catalog cosmetics in the selected categories for ${player.username||'this player'}?`)))return;
-        const b=modal.querySelector('.unlockCosmeticsConfirm');b.disabled=true;statusText(modal.querySelector('.unlockCosmeticsModalStatus'),'Unlocking selected cosmetics…');
-        try{const {error}=await sb.rpc('hitta_admin_unlock_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;close();await refreshSearch(player.user_id,`Selected cosmetics unlocked for ${player.username||'player'}.`);}
-        catch(e){statusText(modal.querySelector('.unlockCosmeticsModalStatus'),e.message||'Could not unlock selected cosmetics.',true);b.disabled=false;}
-      });
+    controls.querySelector('.unlockAllBtn').addEventListener('click', async () => {
+      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe' || item.type === 'emote').length;
+      if (await immersiveConfirm(`Unlock all ${count} active catalog cosmetics for ${player.username || 'this player'}?`)) runBulkAction('unlock_all');
     });
     controls.querySelector('.removeAllBtn').addEventListener('click', async () => {
       if (!(await immersiveConfirm(`WARNING: This will set ${player.username || 'this player'} to 0 coins, remove all non-starter cosmetics, and reset XP, level, and prestige. This cannot be undone. Continue?`))) return;
@@ -1120,13 +1098,7 @@
       modal.innerHTML=`<div class="admin-cosmetic-modal-card" role="dialog" aria-modal="true" aria-labelledby="removeCosmeticTitle"><h3 id="removeCosmeticTitle">Remove cosmetics only</h3><p class="removeCosmeticsTarget"></p><label class="removeCosmeticsSelectAllRow"><input type="checkbox" class="removeCosmeticsSelectAll"><strong>Select all categories</strong></label><div class="admin-cosmetic-options"><label><input type="checkbox" value="skin" class="removeCosmeticType"> Skins</label><label><input type="checkbox" value="pickaxe" class="removeCosmeticType"> Pickaxes</label><label><input type="checkbox" value="shoes" class="removeCosmeticType"> Shoes</label><label><input type="checkbox" value="emote" class="removeCosmeticType"> Emotes</label></div><div class="status removeCosmeticsModalStatus"></div><div class="admin-cosmetic-modal-actions"><button type="button" class="removeCosmeticsConfirm danger">Continue</button><button type="button" class="removeCosmeticsCancel secondary">Cancel</button></div></div>`;
       document.body.append(modal);modal.querySelector('.removeCosmeticsTarget').textContent=`This removes selected cosmetics from ${player.username||'this player'} without changing XP, level, prestige, coins, or other account progression.`;const boxes=[...modal.querySelectorAll('.removeCosmeticType')],all=modal.querySelector('.removeCosmeticsSelectAll'),close=()=>modal.remove();
       all.addEventListener('change',()=>boxes.forEach(cb=>cb.checked=all.checked));boxes.forEach(cb=>cb.addEventListener('change',()=>all.checked=boxes.every(x=>x.checked)));modal.querySelector('.removeCosmeticsCancel').addEventListener('click',close);modal.addEventListener('click',e=>{if(e.target===modal)close();});
-      modal.querySelector('.removeCosmeticsConfirm').addEventListener('click',async()=>{const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);if(!selected.length){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Select at least one cosmetic category.',true);return;}const typed=await immersivePrompt('This permanently removes the selected cosmetic categories from this account. Type REMOVE to confirm:');if(typed!=='REMOVE'){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removal cancelled.');return;}const b=modal.querySelector('.removeCosmeticsConfirm');b.disabled=true;statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removing selected cosmetics…');try{const {error}=await sb.rpc('hitta_admin_remove_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;
-          const ownershipOverride=cosmeticOwnershipOverrides.get(String(player.user_id))||{clearedTypes:[],addedItems:{}};
-          ownershipOverride.clearedTypes=[...new Set([...ownershipOverride.clearedTypes,...selected])];
-          for(const type of selected){ownershipOverride.addedItems[type]=[];}
-          cosmeticOwnershipOverrides.set(String(player.user_id),ownershipOverride);
-          if(player.owned&&typeof player.owned==='object')selected.forEach(type=>player.owned[type]=[]);
-          close();await refreshSearch(player.user_id,`Selected cosmetics removed from ${player.username||'player'}. Progression and currency were preserved.`);}catch(e){statusText(modal.querySelector('.removeCosmeticsModalStatus'),e.message||'Could not remove cosmetics.',true);b.disabled=false;}});
+      modal.querySelector('.removeCosmeticsConfirm').addEventListener('click',async()=>{const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);if(!selected.length){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Select at least one cosmetic category.',true);return;}const typed=await immersivePrompt('This permanently removes the selected cosmetic categories from this account. Type REMOVE to confirm:');if(typed!=='REMOVE'){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removal cancelled.');return;}const b=modal.querySelector('.removeCosmeticsConfirm');b.disabled=true;statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removing selected cosmetics…');try{const {error}=await sb.rpc('hitta_admin_remove_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;close();await refreshSearch(player.user_id,`Selected cosmetics removed from ${player.username||'player'}. Progression and currency were preserved.`);}catch(e){statusText(modal.querySelector('.removeCosmeticsModalStatus'),e.message||'Could not remove cosmetics.',true);b.disabled=false;}});
     });
     // Friends gifting-lock controls. Backend RPCs are admin-protected and require the accompanying migration.
     const giftingBox=controls.querySelector('.giftingLockBox'),giftingSearch=giftingBox.querySelector('.giftingFriendSearch'),giftingSelect=giftingBox.querySelector('.giftingFriendSelect'),giftingStatus=giftingBox.querySelector('.giftingLockStatus');let giftingFriends=[];
@@ -1135,7 +1107,7 @@
     giftingSearch.addEventListener('input',populateGiftingFriends);
     const loadGiftingFriends=async()=>{statusText(giftingStatus,'Loading friends…');giftingSelect.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Loading friends…';giftingSelect.append(placeholder);try{if(!player.user_id)throw new Error('Selected player profile is missing its user ID.');const {data,error}=await sb.rpc('hitta_admin_list_player_friends',{p_target_user_id:player.user_id});if(error)throw error;const raw=Array.isArray(data)?data:(Array.isArray(data?.friends)?data.friends:[]);giftingFriends=raw.filter(f=>giftingFriendId(f));populateGiftingFriends();statusText(giftingStatus,`${giftingFriends.length} friend(s) loaded. Search and select a username.`);}catch(e){giftingFriends=[];populateGiftingFriends();statusText(giftingStatus,e.message||'Could not load friends.',true);}};
     loadGiftingFriends();
-    const setGiftingLock=async locked=>{const friendId=giftingSelect.value;if(!friendId)return statusText(giftingStatus,'Select a friend first.',true);const friend=giftingFriends.find(f=>String(giftingFriendId(f))===String(friendId));const label=friend?.username||friend?.name||'this friend';if(!(await immersiveConfirm(`${locked?'Put gifting lock back on':'Remove gifting lock for'} ${label}?`)))return;const b=giftingBox.querySelector(locked?'.lockGiftingBtn':'.unlockGiftingBtn');b.disabled=true;statusText(giftingStatus,locked?'Applying gifting lock…':'Removing gifting lock…');try{const {error}=await sb.rpc('hitta_admin_set_gifting_lock',{p_target_user_id:player.user_id,p_friend_user_id:friendId,p_locked:locked});if(error)throw error;statusText(giftingStatus,locked?`Gifting lock restored for ${label}.`:`Gifting lock removed for ${label}.`);}catch(e){statusText(giftingStatus,e.message||'Could not update gifting lock.',true);}finally{b.disabled=false;}};
+    const giftingDailyBypass=giftingBox.querySelector('.giftingDailyBypass');const setGiftingLock=async locked=>{const friendId=giftingSelect.value;if(!friendId)return statusText(giftingStatus,'Select a friend first.',true);const friend=giftingFriends.find(f=>String(giftingFriendId(f))===String(friendId));const label=friend?.username||friend?.name||'this friend';const dailyBypass=!locked&&giftingDailyBypass.checked;if(!(await immersiveConfirm(`${locked?'Put gifting lock and normal daily limit back on':'Remove gifting lock for'} ${label}${dailyBypass?' and bypass the daily 3-gift limit':''}?`)))return;const b=giftingBox.querySelector(locked?'.lockGiftingBtn':'.unlockGiftingBtn');b.disabled=true;statusText(giftingStatus,locked?'Restoring gifting restrictions…':'Removing gifting restrictions…');try{const {error}=await sb.rpc('hitta_admin_set_gifting_bypasses',{p_target_user_id:player.user_id,p_friend_user_id:friendId,p_friend_lock_bypass:!locked,p_daily_limit_bypass:dailyBypass});if(error)throw error;statusText(giftingStatus,locked?`Gifting lock and daily limit restored for ${label}.`:`Gifting lock removed for ${label}${dailyBypass?' and daily gift limit bypass enabled':''}.`);}catch(e){statusText(giftingStatus,e.message||'Could not update gifting restrictions.',true);}finally{b.disabled=false;}};
     giftingBox.querySelector('.unlockGiftingBtn').addEventListener('click',()=>setGiftingLock(false));giftingBox.querySelector('.lockGiftingBtn').addEventListener('click',()=>setGiftingLock(true));
     const banBox=document.createElement('section');banBox.className='editbox';
     banBox.innerHTML=`<strong>Ban player</strong>
@@ -1201,8 +1173,6 @@
   setInterval(()=>{if(document.visibilityState!=='visible')return;[...liveBanUpdaters.values()].slice(0,10).forEach(fn=>fn());loadBannedList();},6000);
   let lastSearch = '';
   const clanTagOverrideCache = new Map();
-  // Keep immediate admin inventory changes reflected even if the player-search RPC returns a stale snapshot.
-  const cosmeticOwnershipOverrides = new Map();
   const liveClanUpdaters = new Map();
 
   async function refreshSearch(updatedPlayerId = null, successMessage = '') {
@@ -1226,18 +1196,6 @@
     } else {
       const fragment = document.createDocumentFragment();
       data.forEach(player => {
-        const ownershipOverride = cosmeticOwnershipOverrides.get(String(player.user_id));
-        if (ownershipOverride) {
-          if (!player.owned || typeof player.owned !== 'object') player.owned = {};
-          for (const type of ownershipOverride.clearedTypes || []) player.owned[type] = [];
-          for (const [type, items] of Object.entries(ownershipOverride.addedItems || {})) {
-            if (!Array.isArray(player.owned[type])) player.owned[type] = [];
-            for (const itemId of items) {
-              const exists = player.owned[type].some(item => String(typeof item === 'object' && item !== null ? (item.id ?? item.cosmetic_id ?? item.item_id ?? '') : item) === String(itemId));
-              if (!exists) player.owned[type].push(itemId);
-            }
-          }
-        }
         const card = renderPlayer(player);
         if (updatedPlayerId && player.user_id === updatedPlayerId) updatedCard = card;
         fragment.append(card);
