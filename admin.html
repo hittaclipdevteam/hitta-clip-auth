@@ -916,7 +916,26 @@
           p_message: msgInput.value.trim() || null
         });
         if (error) throw error;
-        statusText(statusEl, 'Gift sent. It pops up on their screen right away.');
+        // Refresh ownership immediately after gifting so the dropdown cannot use stale cached data.
+        const { data: freshProfile, error: ownershipError } = await sb
+          .from('player_profiles')
+          .select('owned')
+          .eq('user_id', player.user_id)
+          .maybeSingle();
+        if (!ownershipError && freshProfile && freshProfile.owned) {
+          player.owned = freshProfile.owned;
+        } else {
+          // Gift RPC succeeded; optimistically mark the gift as owned if the profile read is unavailable.
+          player.owned = player.owned && typeof player.owned === 'object' ? { ...player.owned } : {};
+          const ownershipKey = ({ skin: 'skins', pickaxe: 'pickaxes', emote: 'emotes', shoes: 'shoes' })[type] || type;
+          const current = player.owned[ownershipKey] ?? player.owned[type];
+          const ids = Array.isArray(current) ? current.slice() : current && typeof current === 'object' ? Object.keys(current).filter(k => current[k]) : current == null ? [] : [current];
+          if (!ids.some(value => String(value && typeof value === 'object' ? (value.id ?? value.cosmetic_id ?? value.item_id ?? value.cosmeticId ?? '') : value) === String(id))) ids.push(id);
+          player.owned[ownershipKey] = ids;
+        }
+        fillGiftItems();
+        updateGiftSelectionState();
+        statusText(statusEl, 'Gift sent. Ownership updated immediately.');
         msgInput.value = '';
       } catch (error) {
         statusText(statusEl, error.message || 'Could not send gift.', true);
@@ -1415,14 +1434,13 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
           p_id:id,p_name:name,p_rarity:rarity,p_price:price,p_description:description,p_assets:assets
         });
         if(updateError) throw updateError;
-        const {error:enableError}=rarity==='exclusive'?{error:null}:await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});
+        const {error:enableError}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});
         if(enableError) throw enableError;
-        status(statusId,rarity==='exclusive'?'Existing cosmetic updated as Exclusive and kept disabled from the Item Shop. Player ownership and locker entries were preserved.':'Existing disabled cosmetic restored and updated. Player ownership and locker entries were preserved.');
+        status(statusId,'Existing cosmetic updated and restored to the active catalog. Player ownership and locker entries were preserved.');
       } else {
         const {error}=await sb.from('cosmetic_catalog').insert({id,type,name,rarity,price,description,visual,assets,featured:false,active:true});
         if(error) throw error;
-        if(rarity==='exclusive'){const {error:disableError}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:false});if(disableError) throw disableError;status(statusId,'Published as Exclusive. It is disabled from the Item Shop; use Edit to force it in.');}
-        else status(statusId,'Published! The cosmetic is now in the live catalog.');
+        status(statusId,'Published! The cosmetic is now in the live catalog.');
       }
       $(skin?'skinUploadForm':emote?'emoteUploadForm':shoes?'shoesUploadForm':'pickaxeUploadForm').reset();
       $(prefix+'Price').value=defaultPriceFor(type,$(prefix+'Rarity').value);
@@ -1467,33 +1485,12 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
         ${imageFields}
       </div>
       <div class="upload-help">Leave image fields empty to keep the current images. New PNGs or validated SVGs must match the listed dimensions/aspect ratios.</div>
-      <div class="exclusive-shop-box" style="display:none;border:1px solid #6b5bff;border-radius:10px;padding:10px;margin:6px 0;background:#0d1119"><strong>Exclusive: hidden from the Item Shop</strong><div class="upload-help">Switching to Exclusive disables this cosmetic from the Item Shop. Enable it and force it in for a set number of days below.</div><label class="field">Force into Item Shop for (days, 1-30)<input class="exclusive-force-days" type="number" min="1" max="30" step="1" value="1"></label><button type="button" class="secondary exclusive-force-btn">Enable + force into Item Shop</button><div class="status exclusive-force-status" aria-live="polite"></div></div>
       <div class="cosmetic-actions"><button type="submit" class="save-edit-btn">Save changes</button><button type="button" class="secondary cancel-edit-btn">Cancel</button></div>
       <div class="status edit-cosmetic-status" aria-live="polite"></div>`;
 
     host.append(form);
     const raritySelect = form.querySelector('.edit-rarity');
     const priceInput = form.querySelector('.edit-price');
-    const exclusiveBox = form.querySelector('.exclusive-shop-box');
-    const syncExclusiveBox = () => { exclusiveBox.style.display = raritySelect.value === 'exclusive' ? 'block' : 'none'; };
-    raritySelect.addEventListener('change', syncExclusiveBox); syncExclusiveBox();
-    form.querySelector('.exclusive-force-btn').addEventListener('click', async () => {
-      const btn = form.querySelector('.exclusive-force-btn'), out = form.querySelector('.exclusive-force-status');
-      const days = Number(form.querySelector('.exclusive-force-days').value);
-      if (!Number.isInteger(days) || days < 1 || days > 30) { statusText(out, 'Choose between 1 and 30 days.', true); return; }
-      if (!(await immersiveConfirm('Enable ' + item.name + ' and force it into the Item Shop for ' + days + ' day(s)?'))) return;
-      btn.disabled = true;
-      try {
-        statusText(out, 'Enabling and scheduling...');
-        const current = catalogItems.find(x => String(x.id) === String(item.id)) || item;
-        if (current.active === false) { const {error: enableErr} = await sb.rpc('hitta_admin_set_cosmetic_active', {p_id: item.id, p_active: true}); if (enableErr) throw enableErr; }
-        const {data, error} = await sb.rpc('hitta_admin_force_shop_item', {p_cosmetic_id: item.id, p_days: days});
-        if (error) throw error;
-        await loadCatalog(); await loadForcedShopItems();
-        statusText(out, 'Enabled and forced into the Item Shop until ' + new Date(data.ends_at).toLocaleString() + '.');
-      } catch (error) { statusText(out, error.message || 'Could not force into the shop.', true); }
-      finally { btn.disabled = false; }
-    });
     raritySelect.addEventListener('change', () => {
       priceInput.value = defaultPriceFor(item.type, raritySelect.value);
     });
@@ -1550,10 +1547,8 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
           p_assets:hasNewAssets?assets:null
         });
         if(error) throw error;
-        const becameExclusive = rarity === 'exclusive' && String(item.rarity).toLowerCase() !== 'exclusive';
-        if (becameExclusive && item.active !== false) { const {error: disableErr} = await sb.rpc('hitta_admin_set_cosmetic_active', {p_id: item.id, p_active: false}); if (disableErr) throw disableErr; }
         await loadCatalog();
-        status('catalogStatus', name + ' updated successfully.' + (becameExclusive ? ' Set to Exclusive and disabled from the Item Shop.' : ''));
+        status('catalogStatus', name + ' updated successfully.');
       }catch(error){
         statusText(message,error.message||'Could not update cosmetic.',true);
         saveButton.disabled = false;
@@ -1661,7 +1656,7 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
     const previousValue=select.value;
     const query=String($('forceShopCosmeticSearch')?.value||'').trim().toLocaleLowerCase();
     select.replaceChildren();
-    const active=catalogItems.filter(x=>x.active!==false||String(x.rarity).toLowerCase()==='exclusive');
+    const active=catalogItems.filter(x=>x.active!==false);
     const matches=query?active.filter(item=>[item.name,item.id,item.type,item.rarity,item.description].some(value=>String(value||'').toLocaleLowerCase().includes(query))):active;
     matches.forEach(item=>{const opt=document.createElement('option');opt.value=item.id;opt.textContent=`${item.name} (${item.type})`;select.append(opt);});
     // Keep the current selection available even if it does not match the active filter.
