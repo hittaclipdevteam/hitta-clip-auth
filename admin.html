@@ -113,7 +113,7 @@
     footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
     @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
   </style>
- </head>
+ <style id="hittaFxCss">@keyframes fxFlicker{0%,5%,8%,30%,33%,57%,60%,83%,86%,100%{opacity:1}6%{opacity:.2}31%{opacity:.45}58%{opacity:.15}84%{opacity:.25}}@keyframes fxRainbowFlow{to{background-position:300% 0}}@keyframes fxTileBg{to{background-position:0 0,300% 0}}@keyframes fxTileGlow{0%{box-shadow:0 0 6px #ff4d4d;border-color:#ff4d4d}20%{box-shadow:0 0 8px #ffb84d;border-color:#ffb84d}40%{box-shadow:0 0 8px #4dff88;border-color:#4dff88}60%{box-shadow:0 0 8px #4ddfff;border-color:#4ddfff}80%{box-shadow:0 0 8px #9b6bff;border-color:#9b6bff}100%{box-shadow:0 0 6px #ff4d4d;border-color:#ff4d4d}}@keyframes fxRadiant{0%,100%{text-shadow:0 0 3px #fff,0 0 8px #bcd6ff,0 0 14px #6f9bff}50%{text-shadow:0 0 5px #fff,0 0 16px #e3eeff,0 0 26px #8fb4ff,0 0 34px #4f7bff}}@keyframes fxRainbowGlow{0%{text-shadow:0 0 2px #ff3030,1px 0 0 #ff3030,-1px 0 0 #ff3030,0 1px 0 #ff3030,0 -1px 0 #ff3030,0 0 9px #ff3030}16%{text-shadow:0 0 2px #ff9d00,1px 0 0 #ff9d00,-1px 0 0 #ff9d00,0 1px 0 #ff9d00,0 -1px 0 #ff9d00,0 0 9px #ff9d00}33%{text-shadow:0 0 2px #fff000,1px 0 0 #fff000,-1px 0 0 #fff000,0 1px 0 #fff000,0 -1px 0 #fff000,0 0 9px #fff000}50%{text-shadow:0 0 2px #35d05b,1px 0 0 #35d05b,-1px 0 0 #35d05b,0 1px 0 #35d05b,0 -1px 0 #35d05b,0 0 9px #35d05b}66%{text-shadow:0 0 2px #24c8ff,1px 0 0 #24c8ff,-1px 0 0 #24c8ff,0 1px 0 #24c8ff,0 -1px 0 #24c8ff,0 0 9px #24c8ff}83%{text-shadow:0 0 2px #b000ff,1px 0 0 #b000ff,-1px 0 0 #b000ff,0 1px 0 #b000ff,0 -1px 0 #b000ff,0 0 9px #b000ff}100%{text-shadow:0 0 2px #ff3030,1px 0 0 #ff3030,-1px 0 0 #ff3030,0 1px 0 #ff3030,0 -1px 0 #ff3030,0 0 9px #ff3030}}@keyframes fxRainbowColor{0%{color:#ff3030}16%{color:#ff9d00}33%{color:#fff000}50%{color:#35d05b}66%{color:#24c8ff}83%{color:#b000ff}100%{color:#ff3030}}.clan-fx{position:relative;display:inline-block;white-space:nowrap}@keyframes fxScroll{from{text-indent:0}to{text-indent:-11.2em}}@keyframes fxBob{0%,100%{transform:translateY(-.12em)}50%{transform:translateY(.12em)}}.clan-fx::after{content:attr(data-digits);position:absolute;left:0;right:0;top:50%;height:1em;transform:translateY(-50%);line-height:1;overflow:hidden;white-space:nowrap;pointer-events:none;-webkit-text-stroke:0;text-shadow:none;font:900 .7em/1 ui-monospace,Consolas,monospace;letter-spacing:.14em;animation:fxScroll 2.2s linear infinite}.clan-fx-radiant::after{top:-.95em;bottom:auto;height:1em;transform:none;font-size:.5em;text-indent:0;animation:fxBob 1.4s ease-in-out infinite,fxRainbowColor 4s linear infinite}.clan-fx-radiant{color:#fff!important;animation:fxRadiant 2.4s ease-in-out infinite}.clan-fx-hacker{color:#000!important;text-shadow:0 0 2px #39ff14,1px 0 0 #39ff14,-1px 0 0 #39ff14,0 1px 0 #39ff14,0 -1px 0 #39ff14,0 0 9px #39ff14}.clan-fx-hacker::after{color:#39ff14;text-shadow:0 0 4px #39ff14}.clan-fx-numbers{color:#000!important;text-shadow:0 0 2px #ff2a2a,1px 0 0 #ff2a2a,-1px 0 0 #ff2a2a,0 1px 0 #ff2a2a,0 -1px 0 #ff2a2a,0 0 9px #ff2a2a}.clan-fx-numbers::after{color:#ff2a2a;text-shadow:0 0 4px #ff2a2a}.clan-fx-rainbow_hacker{color:#fff!important;animation:fxRainbowGlow 4s linear infinite}.clan-fx-rainbow_hacker::after{animation:fxScroll 2.2s linear infinite,fxRainbowColor 4s linear infinite;text-shadow:0 0 4px currentColor}.fx-strip-hacker{position:relative;overflow:hidden;background:#030803!important;box-shadow:0 0 8px #39ff14,inset 0 0 6px rgba(57,255,20,.6)}.fx-strip-hacker::after{content:attr(data-digits);position:absolute;inset:0;overflow:hidden;white-space:nowrap;color:#39ff14;text-shadow:0 0 4px #39ff14;font:700 9px/14px ui-monospace,Consolas,monospace;letter-spacing:.2em;padding-left:4px;animation:fxFlicker 1.3s steps(1,end) infinite}.fx-strip-exclusive{position:relative;overflow:hidden;background:linear-gradient(90deg,#ff4d4d,#ffb84d,#fff04d,#4dff88,#4ddfff,#9b6bff,#ff4dce,#ff4d4d)!important;background-size:300% 100%;animation:fxRainbowFlow 3s linear infinite;box-shadow:0 0 10px rgba(255,255,255,.5)}.fx-strip-exclusive::after{content:attr(data-digits);position:absolute;inset:0;overflow:hidden;white-space:nowrap;color:#fff;text-shadow:0 0 3px #fff;font:700 9px/14px ui-monospace,Consolas,monospace;letter-spacing:.2em;padding-left:4px;animation:fxFlicker 1.3s steps(1,end) infinite,fxRainbowColor 4s linear infinite}.fx-text-hacker{color:#000!important;background:none!important;text-shadow:0 0 2px #39ff14,1px 0 0 #39ff14,-1px 0 0 #39ff14,0 1px 0 #39ff14,0 -1px 0 #39ff14,0 0 9px #39ff14}.fx-text-exclusive{color:#fff!important;background:none!important;animation:fxRainbowGlow 4s linear infinite}.card.tile.fx-tile-hacker{background:linear-gradient(170deg,#082412,#020704)!important;border-color:#39ff14!important;box-shadow:0 0 16px rgba(57,255,20,.55),inset 0 0 14px rgba(57,255,20,.22)!important}.card.tile.fx-tile-exclusive{background:linear-gradient(rgba(10,12,20,.55),rgba(10,12,20,.55)),linear-gradient(90deg,#ff4d4d,#ffb84d,#fff04d,#4dff88,#4ddfff,#9b6bff,#ff4dce,#ff4d4d)!important;background-size:100% 100%,300% 100%!important;animation:fxTileBg 6s linear infinite,fxTileGlow 4s linear infinite;border-width:3px!important}#shopPreviewCard.fx-hacker{border-color:#39ff14!important;box-shadow:0 0 30px rgba(57,255,20,.6)!important}#shopPreviewCard.fx-exclusive{border-color:transparent!important;box-shadow:0 0 30px rgba(255,255,255,.25)!important;animation:fxTileBg 6s linear infinite}.rarity-chip.hacker{color:#000!important;background:#06120a;border-color:#39ff14!important;text-shadow:0 0 2px #39ff14,1px 0 0 #39ff14,-1px 0 0 #39ff14,0 1px 0 #39ff14,0 -1px 0 #39ff14,0 0 9px #39ff14}.rarity-chip.exclusive{color:transparent!important;border-color:transparent;background:linear-gradient(90deg,#ff4d4d,#ffb84d,#fff04d,#4dff88,#4ddfff,#9b6bff,#ff4dce,#ff4d4d);background-size:300% 100%;background-clip:text;-webkit-background-clip:text;animation:fxRainbowFlow 3s linear infinite}</style></head>
  <body>
   <main class="wrap">
    <header>
@@ -944,7 +944,7 @@
 
     const editStatus = controls.querySelector('.editStatus');
     const clanStyles = [
-      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave']
+      ['white','White'],['red','Red'],['orange','Orange'],['yellow','Yellow'],['green','Green'],['blue','Blue'],['purple','Purple'],['pink','Pink'],['brown','Brown'],['black','Black'],['grey','Grey'],['rainbow_white','Rainbow White'],['rainbow_black','Rainbow Black'],['color_wave','Color Wave'],['radiant','Radiant'],['numbers','Numbers'],['hacker','Hacker'],['rainbow_hacker','Rainbow Hacker']
     ];
     if(!document.getElementById('hittaGameClanCss')){const st=document.createElement('style');st.id='hittaGameClanCss';st.textContent=`
     @keyframes hittaRainbowFlow{0%{background-position:0% 50%}100%{background-position:400% 50%}}
@@ -956,12 +956,16 @@
     .clan-stroke{-webkit-text-stroke:.045em currentColor;paint-order:stroke fill}
     .clanColorWave.clan-stroke{-webkit-text-stroke:.045em transparent}
     .clan-override-preview .tag-preview,.adminClanCurrent{display:inline-block;font-weight:800;white-space:pre}`;document.head.append(st);}
-    const GAME_CLAN_COLORS={white:'#ffffff',red:'#ff4545',orange:'#ff9638',yellow:'#ffe34d',green:'#4be078',blue:'#4aa3ff',purple:'#b58aff',pink:'#ff82c8',brown:'#a87950',black:'#000000',grey:'#aeb5c0',rainbow_white:'#ffffff',rainbow_black:'#000000',color_wave:'#ffffff'};
+    const GAME_CLAN_COLORS={white:'#ffffff',red:'#ff4545',orange:'#ff9638',yellow:'#ffe34d',green:'#4be078',blue:'#4aa3ff',purple:'#b58aff',pink:'#ff82c8',brown:'#a87950',black:'#000000',grey:'#aeb5c0',rainbow_white:'#ffffff',rainbow_black:'#000000',color_wave:'#ffffff',radiant:'#ffffff',numbers:'#000000',hacker:'#000000',rainbow_hacker:'#ffffff'};
+
+const FX_CLAN_IDS=['radiant','hacker','numbers','rainbow_hacker'];
+function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1';return s+s;}
     const paintClanTag=(el,label,style,hex)=>{
-      el.classList.remove('clanRainbowGlow','clanColorWave','clan-black','clan-black-rb');el.classList.add('clan-stroke');
+      el.classList.remove('clanRainbowGlow','clanColorWave','clan-black','clan-black-rb','clan-fx','clan-fx-radiant','clan-fx-hacker','clan-fx-numbers','clan-fx-rainbow_hacker');el.removeAttribute('data-digits');el.classList.add('clan-stroke');
       el.textContent=label;
       el.style.color=style==='custom_hex'||style==='custom'?(/^#[0-9a-f]{6}$/i.test(hex||'')?hex:'#ffffff'):(GAME_CLAN_COLORS[style]||'#ffffff');
-      if(style==='color_wave'){el.classList.add('clanColorWave');el.style.color='';}
+      if(FX_CLAN_IDS.includes(style)){el.classList.add('clan-fx','clan-fx-'+style);el.dataset.digits=clanFxDigits(20);el.style.textShadow='';}
+      else if(style==='color_wave'){el.classList.add('clanColorWave');el.style.color='';}
       else if(style==='rainbow_white'||style==='rainbow_black'){el.classList.add('clanRainbowGlow');if(style==='rainbow_black')el.classList.add('clan-black-rb');}
       else if(style==='black')el.classList.add('clan-black');
     };
@@ -1270,9 +1274,9 @@
 
     const rarity = document.createElement('span');
     const rarityKey = String(item.rarity || '').toLowerCase();
-    rarity.className = 'rarity-chip' + (rarityKey === 'prismatic' ? ' prismatic' : '');
+    rarity.className = 'rarity-chip' + (rarityKey === 'prismatic' ? ' prismatic' : (rarityKey === 'hacker' || rarityKey === 'exclusive') ? ' ' + rarityKey : '');
     rarity.textContent = safeText(item.rarity);
-    if (rarityKey !== 'prismatic') rarity.style.color = RARITY_COLORS[rarityKey] || '#9aa5b5';
+    if (rarityKey !== 'prismatic' && rarityKey !== 'hacker' && rarityKey !== 'exclusive') rarity.style.color = RARITY_COLORS[rarityKey] || '#9aa5b5';
 
     head.append(identity, rarity);
 
@@ -1299,13 +1303,13 @@
     return card;
   }
 
-  const RARITY_COLORS = { common:'#9ca3af', uncommon:'#22c55e', rare:'#3b82f6', epic:'#a855f7', legendary:'#f97316', mythic:'#facc15', exotic:'#14b8a6', ancient:'#a16207', relic:'#ef4444', shadow:'#111827', divine:'#f8fafc', celestial:'#ec4899', prismatic:'#ff4fd8' };
-  const RARITY_DEFAULT_PRICES = { common:300, uncommon:600, rare:900, epic:1400, legendary:2000, mythic:2700, exotic:3300, ancient:4000, relic:4800, shadow:5600, divine:6500, celestial:7500, prismatic:9000 };
+  const RARITY_COLORS = { common:'#9ca3af', uncommon:'#22c55e', rare:'#3b82f6', epic:'#a855f7', legendary:'#f97316', mythic:'#facc15', exotic:'#14b8a6', ancient:'#a16207', relic:'#ef4444', shadow:'#111827', divine:'#f8fafc', celestial:'#ec4899', prismatic:'#ff4fd8', hacker:'#39ff14', exclusive:'#ffffff' };
+  const RARITY_DEFAULT_PRICES = { common:300, uncommon:600, rare:900, epic:1400, legendary:2000, mythic:2700, exotic:3300, ancient:4000, relic:4800, shadow:5600, divine:6500, celestial:7500, prismatic:9000, hacker:9500, exclusive:12000 };
   // Pickaxes default to 40% cheaper than skins of the same rarity (skin price x 0.6).
   const PICKAXE_PRICE_MULTIPLIER = 0.6;
   const EMOTE_PRICE_MULTIPLIER = 0.25; // Emotes cost 25% of skin prices.
   const RARITY_DEFAULT_EMOTE_PRICES = Object.fromEntries(Object.entries(RARITY_DEFAULT_PRICES).map(([r,p])=>[r,Math.round(p*EMOTE_PRICE_MULTIPLIER)]));
-  const RARITY_DEFAULT_SHOES_PRICES = { common:100, uncommon:200, rare:300, epic:450, legendary:650, mythic:850, exotic:1050, ancient:1300, relic:1550, shadow:1800, divine:2100, celestial:2400, prismatic:2900 };
+  const RARITY_DEFAULT_SHOES_PRICES = { common:100, uncommon:200, rare:300, epic:450, legendary:650, mythic:850, exotic:1050, ancient:1300, relic:1550, shadow:1800, divine:2100, celestial:2400, prismatic:2900, hacker:3000, exclusive:3800 };
   const RARITY_DEFAULT_PICKAXE_PRICES = Object.fromEntries(Object.entries(RARITY_DEFAULT_PRICES).map(([r,p])=>[r,Math.round(p*PICKAXE_PRICE_MULTIPLIER)]));
   const defaultPriceFor = (type, rarity) => (type==='pickaxe' ? RARITY_DEFAULT_PICKAXE_PRICES : type==='emote' ? RARITY_DEFAULT_EMOTE_PRICES : type==='shoes' ? RARITY_DEFAULT_SHOES_PRICES : RARITY_DEFAULT_PRICES)[rarity];
   const RARITIES = Object.keys(RARITY_DEFAULT_PRICES);
@@ -1411,13 +1415,14 @@
           p_id:id,p_name:name,p_rarity:rarity,p_price:price,p_description:description,p_assets:assets
         });
         if(updateError) throw updateError;
-        const {error:enableError}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});
+        const {error:enableError}=rarity==='exclusive'?{error:null}:await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});
         if(enableError) throw enableError;
-        status(statusId,'Existing disabled cosmetic restored and updated. Player ownership and locker entries were preserved.');
+        status(statusId,rarity==='exclusive'?'Existing cosmetic updated as Exclusive and kept disabled from the Item Shop. Player ownership and locker entries were preserved.':'Existing disabled cosmetic restored and updated. Player ownership and locker entries were preserved.');
       } else {
         const {error}=await sb.from('cosmetic_catalog').insert({id,type,name,rarity,price,description,visual,assets,featured:false,active:true});
         if(error) throw error;
-        status(statusId,'Published! The cosmetic is now in the live catalog.');
+        if(rarity==='exclusive'){const {error:disableError}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:false});if(disableError) throw disableError;status(statusId,'Published as Exclusive. It is disabled from the Item Shop; use Edit to force it in.');}
+        else status(statusId,'Published! The cosmetic is now in the live catalog.');
       }
       $(skin?'skinUploadForm':emote?'emoteUploadForm':shoes?'shoesUploadForm':'pickaxeUploadForm').reset();
       $(prefix+'Price').value=defaultPriceFor(type,$(prefix+'Rarity').value);
@@ -1462,12 +1467,33 @@
         ${imageFields}
       </div>
       <div class="upload-help">Leave image fields empty to keep the current images. New PNGs or validated SVGs must match the listed dimensions/aspect ratios.</div>
+      <div class="exclusive-shop-box" style="display:none;border:1px solid #6b5bff;border-radius:10px;padding:10px;margin:6px 0;background:#0d1119"><strong>Exclusive: hidden from the Item Shop</strong><div class="upload-help">Switching to Exclusive disables this cosmetic from the Item Shop. Enable it and force it in for a set number of days below.</div><label class="field">Force into Item Shop for (days, 1-30)<input class="exclusive-force-days" type="number" min="1" max="30" step="1" value="1"></label><button type="button" class="secondary exclusive-force-btn">Enable + force into Item Shop</button><div class="status exclusive-force-status" aria-live="polite"></div></div>
       <div class="cosmetic-actions"><button type="submit" class="save-edit-btn">Save changes</button><button type="button" class="secondary cancel-edit-btn">Cancel</button></div>
       <div class="status edit-cosmetic-status" aria-live="polite"></div>`;
 
     host.append(form);
     const raritySelect = form.querySelector('.edit-rarity');
     const priceInput = form.querySelector('.edit-price');
+    const exclusiveBox = form.querySelector('.exclusive-shop-box');
+    const syncExclusiveBox = () => { exclusiveBox.style.display = raritySelect.value === 'exclusive' ? 'block' : 'none'; };
+    raritySelect.addEventListener('change', syncExclusiveBox); syncExclusiveBox();
+    form.querySelector('.exclusive-force-btn').addEventListener('click', async () => {
+      const btn = form.querySelector('.exclusive-force-btn'), out = form.querySelector('.exclusive-force-status');
+      const days = Number(form.querySelector('.exclusive-force-days').value);
+      if (!Number.isInteger(days) || days < 1 || days > 30) { statusText(out, 'Choose between 1 and 30 days.', true); return; }
+      if (!(await immersiveConfirm('Enable ' + item.name + ' and force it into the Item Shop for ' + days + ' day(s)?'))) return;
+      btn.disabled = true;
+      try {
+        statusText(out, 'Enabling and scheduling...');
+        const current = catalogItems.find(x => String(x.id) === String(item.id)) || item;
+        if (current.active === false) { const {error: enableErr} = await sb.rpc('hitta_admin_set_cosmetic_active', {p_id: item.id, p_active: true}); if (enableErr) throw enableErr; }
+        const {data, error} = await sb.rpc('hitta_admin_force_shop_item', {p_cosmetic_id: item.id, p_days: days});
+        if (error) throw error;
+        await loadCatalog(); await loadForcedShopItems();
+        statusText(out, 'Enabled and forced into the Item Shop until ' + new Date(data.ends_at).toLocaleString() + '.');
+      } catch (error) { statusText(out, error.message || 'Could not force into the shop.', true); }
+      finally { btn.disabled = false; }
+    });
     raritySelect.addEventListener('change', () => {
       priceInput.value = defaultPriceFor(item.type, raritySelect.value);
     });
@@ -1524,8 +1550,10 @@
           p_assets:hasNewAssets?assets:null
         });
         if(error) throw error;
+        const becameExclusive = rarity === 'exclusive' && String(item.rarity).toLowerCase() !== 'exclusive';
+        if (becameExclusive && item.active !== false) { const {error: disableErr} = await sb.rpc('hitta_admin_set_cosmetic_active', {p_id: item.id, p_active: false}); if (disableErr) throw disableErr; }
         await loadCatalog();
-        status('catalogStatus',name+' updated successfully.');
+        status('catalogStatus', name + ' updated successfully.' + (becameExclusive ? ' Set to Exclusive and disabled from the Item Shop.' : ''));
       }catch(error){
         statusText(message,error.message||'Could not update cosmetic.',true);
         saveButton.disabled = false;
@@ -1633,7 +1661,7 @@
     const previousValue=select.value;
     const query=String($('forceShopCosmeticSearch')?.value||'').trim().toLocaleLowerCase();
     select.replaceChildren();
-    const active=catalogItems.filter(x=>x.active!==false);
+    const active=catalogItems.filter(x=>x.active!==false||String(x.rarity).toLowerCase()==='exclusive');
     const matches=query?active.filter(item=>[item.name,item.id,item.type,item.rarity,item.description].some(value=>String(value||'').toLocaleLowerCase().includes(query))):active;
     matches.forEach(item=>{const opt=document.createElement('option');opt.value=item.id;opt.textContent=`${item.name} (${item.type})`;select.append(opt);});
     // Keep the current selection available even if it does not match the active filter.
@@ -1652,7 +1680,8 @@
       data.forEach(item=>{const row=document.createElement('div');row.className='player';const head=document.createElement('div');head.className='player-head';const info=document.createElement('div');const name=document.createElement('div');name.className='username';name.textContent=item.name+' · '+item.type;const time=document.createElement('div');time.className='muted';time.textContent='Leaves: '+new Date(item.ends_at).toLocaleString();info.append(name,time);const remove=document.createElement('button');remove.className='danger';remove.textContent='Stop forcing';remove.addEventListener('click',async()=>{if(!(await immersiveConfirm('Stop forcing '+item.name+' into the shop?')))return;const {error}=await sb.rpc('hitta_admin_unforce_shop_item',{p_cosmetic_id:item.id});if(error){status('forceShopStatus',error.message,true);return;}status('forceShopStatus',item.name+' is no longer forced.');await loadForcedShopItems();});head.append(info,remove);row.append(head);host.append(row);});
     }catch(error){host.innerHTML='<div class="empty">Could not load forced shop items.</div>';status('forceShopStatus',error.message||'Could not load forced shop items.',true);}
   }
-  $('forceShopForm').addEventListener('submit',async event=>{event.preventDefault();const id=$('forceShopCosmetic').value,days=Number($('forceShopDays').value);if(!id){status('forceShopStatus','Choose a cosmetic first.',true);return;}if(!Number.isInteger(days)||days<1||days>30){status('forceShopStatus','Choose between 1 and 30 days.',true);return;}$('forceShopSubmit').disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_item',{p_cosmetic_id:id,p_days:days});if(error)throw error;status('forceShopStatus','Cosmetic forced into the shop until '+new Date(data.ends_at).toLocaleString()+'.');await loadForcedShopItems();}catch(error){status('forceShopStatus',error.message||'Could not schedule cosmetic.',true);}finally{$('forceShopSubmit').disabled=false;}});
+  $('forceShopForm').addEventListener('submit',async event=>{event.preventDefault();const id=$('forceShopCosmetic').value,days=Number($('forceShopDays').value);if(!id){status('forceShopStatus','Choose a cosmetic first.',true);return;}if(!Number.isInteger(days)||days<1||days>30){status('forceShopStatus','Choose between 1 and 30 days.',true);return;}$('forceShopSubmit').disabled=true;try{const forcedItem=catalogItems.find(x=>String(x.id)===String(id)); if(forcedItem&&forcedItem.active===false){const {error:enableErr}=await sb.rpc('hitta_admin_set_cosmetic_active',{p_id:id,p_active:true});if(enableErr)throw enableErr;}
+      const {data,error}=await sb.rpc('hitta_admin_force_shop_item',{p_cosmetic_id:id,p_days:days});if(error)throw error;status('forceShopStatus','Cosmetic forced into the shop until '+new Date(data.ends_at).toLocaleString()+'.');await loadForcedShopItems();}catch(error){status('forceShopStatus',error.message||'Could not schedule cosmetic.',true);}finally{$('forceShopSubmit').disabled=false;}});
   $('refreshForcedShopBtn').addEventListener('click',loadForcedShopItems);
   $('forceShopResetBtn').addEventListener('click',async()=>{if(!(await immersiveConfirm('Force a new Item Shop rotation for every player now? The next automatic UTC reset will remain unchanged.')))return;const b=$('forceShopResetBtn');b.disabled=true;try{const {data,error}=await sb.rpc('hitta_admin_force_shop_reset');if(error)throw error;status('forceShopStatus','Shop reset successfully. New rotation is live for everyone.');}catch(error){status('forceShopStatus',error.message||'Could not reset shop.',true);}finally{b.disabled=false;}});
 
