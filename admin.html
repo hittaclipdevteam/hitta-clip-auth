@@ -848,25 +848,64 @@
       const matches = giftCatalog.filter(i => !q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v || '').toLowerCase().includes(q)));
       const previous = giftSelect.value;
       giftSelect.replaceChildren();
-      matches.forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}`; giftSelect.append(o); });
+      matches.forEach(i => {
+        const o = document.createElement('option');
+        o.value = i.type + ':' + i.id;
+        const owned = playerAlreadyOwnGift(i.type, i.id);
+        o.textContent = `${i.name} · ${i.type} · ${i.rarity}${owned ? ' · OWNED' : ''}`;
+        o.disabled = owned;
+        giftSelect.append(o);
+      });
       if (!matches.length) { const o = document.createElement('option'); o.value = ''; o.disabled = true; o.selected = true; o.textContent = 'No matching cosmetics'; giftSelect.append(o); }
       if (matches.some(i => i.type + ':' + i.id === previous)) giftSelect.value = previous;
       giftMatchCount.textContent = `${matches.length} cosmetic${matches.length === 1 ? '' : 's'} found`;
+      updateGiftSelectionState();
     }
     giftSearch.addEventListener('input', fillGiftItems);
     fillGiftItems();
-    function playerAlreadyOwnGift(type, id) {
-      const ownedList = player.owned && player.owned[type];
-      if (!Array.isArray(ownedList)) return false;
-      return ownedList.some(item => String(typeof item === 'object' && item !== null ? (item.id ?? item.cosmetic_id ?? item.item_id ?? '') : item) === String(id));
+    function giftOwnedIds(type) {
+      const owned = player.owned || {};
+      const typeAliases = {
+        skin: ['skin', 'skins'],
+        pickaxe: ['pickaxe', 'pickaxes'],
+        emote: ['emote', 'emotes'],
+        shoes: ['shoes', 'shoe']
+      };
+      const keys = typeAliases[type] || [type];
+      const values = keys.flatMap(key => {
+        const value = owned[key];
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object') return Object.entries(value).filter(([,v]) => !!v).map(([k]) => k);
+        return value == null ? [] : [value];
+      });
+      return new Set(values.map(item => String(item && typeof item === 'object'
+        ? (item.id ?? item.cosmetic_id ?? item.item_id ?? item.cosmeticId ?? '')
+        : item).trim()).filter(Boolean));
     }
+    function playerAlreadyOwnGift(type, id) {
+      return giftOwnedIds(type).has(String(id));
+    }
+    function updateGiftSelectionState() {
+      const [type, ...rest] = giftSelect.value.split(':');
+      const id = rest.join(':');
+      const owned = !!id && playerAlreadyOwnGift(type, id);
+      const sendButton = giftBox.querySelector('.giftBtn');
+      sendButton.disabled = owned || !id;
+      const statusEl = giftBox.querySelector('.giftStatus');
+      if (owned) statusText(statusEl, `Already owned: ${player.username || 'This player'} has this ${type}. Gifts of owned items are blocked.`, true);
+      else if (id) statusText(statusEl, 'Ready to send gift.');
+    }
+    giftSelect.addEventListener('change', updateGiftSelectionState);
     giftBox.querySelector('.giftBtn').addEventListener('click', async () => {
       const [type, ...rest] = giftSelect.value.split(':');
       const id = rest.join(':');
       const msgInput = giftBox.querySelector('.giftMsg');
       const statusEl = giftBox.querySelector('.giftStatus');
       if (!id) return statusText(statusEl, 'Choose a cosmetic first.', true);
-      if (playerAlreadyOwnGift(type, id)) return statusText(statusEl, `Denied: ${player.username || 'This player'} already owns this ${type}.`, true);
+      if (playerAlreadyOwnGift(type, id)) {
+        updateGiftSelectionState();
+        return statusText(statusEl, `Denied: ${player.username || 'This player'} already owns this ${type}.`, true);
+      }
       if (!(await immersiveConfirm(`Send ${giftSelect.selectedOptions[0].textContent} to ${player.username || 'this player'} as a free gift?`))) return;
       const btn = giftBox.querySelector('.giftBtn'); btn.disabled = true; statusText(statusEl, 'Sending gift…');
       try {
@@ -883,6 +922,7 @@
         statusText(statusEl, error.message || 'Could not send gift.', true);
       } finally { btn.disabled = false; }
     });
+    updateGiftSelectionState();
     card.append(giftBox);
 
     const typeSelect = controls.querySelector('.itemType');
