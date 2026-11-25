@@ -804,21 +804,41 @@
       <strong>Send gift</strong>
       <div class="sub">Free gift. The player sees "an admin has sent you a gift" with your optional message.</div>
       <div class="editgrid">
+        <label>Search gift<input class="giftSearch" type="search" maxlength="100" placeholder="Search by name, ID, type, or rarity…" autocomplete="off"></label>
         <label>Cosmetic<select class="giftItem"></select></label>
         <label style="grid-column:1/-1">Message (optional, max 200 characters)<input class="giftMsg" type="text" maxlength="200" placeholder="e.g. Thanks for playing!"></label>
       </div>
+      <div class="muted giftMatchCount"></div>
       <div class="actions"><button type="button" class="giftBtn">Send gift</button></div>
       <div class="status giftStatus" aria-live="polite"></div>`;
     const giftSelect = giftBox.querySelector('.giftItem');
-    catalogItems
-      .filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type) && i.active !== false)
-      .forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}`; giftSelect.append(o); });
+    const giftSearch = giftBox.querySelector('.giftSearch');
+    const giftMatchCount = giftBox.querySelector('.giftMatchCount');
+    const giftCatalog = catalogItems.filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type) && i.active !== false);
+    function fillGiftItems() {
+      const q = giftSearch.value.trim().toLowerCase();
+      const matches = giftCatalog.filter(i => !q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v || '').toLowerCase().includes(q)));
+      const previous = giftSelect.value;
+      giftSelect.replaceChildren();
+      matches.forEach(i => { const o = document.createElement('option'); o.value = i.type + ':' + i.id; o.textContent = `${i.name} · ${i.type} · ${i.rarity}`; giftSelect.append(o); });
+      if (!matches.length) { const o = document.createElement('option'); o.value = ''; o.disabled = true; o.selected = true; o.textContent = 'No matching cosmetics'; giftSelect.append(o); }
+      if (matches.some(i => i.type + ':' + i.id === previous)) giftSelect.value = previous;
+      giftMatchCount.textContent = `${matches.length} cosmetic${matches.length === 1 ? '' : 's'} found`;
+    }
+    giftSearch.addEventListener('input', fillGiftItems);
+    fillGiftItems();
+    function playerAlreadyOwnGift(type, id) {
+      const ownedList = player.owned && player.owned[type];
+      if (!Array.isArray(ownedList)) return false;
+      return ownedList.some(item => String(typeof item === 'object' && item !== null ? (item.id ?? item.cosmetic_id ?? item.item_id ?? '') : item) === String(id));
+    }
     giftBox.querySelector('.giftBtn').addEventListener('click', async () => {
       const [type, ...rest] = giftSelect.value.split(':');
       const id = rest.join(':');
       const msgInput = giftBox.querySelector('.giftMsg');
       const statusEl = giftBox.querySelector('.giftStatus');
       if (!id) return statusText(statusEl, 'Choose a cosmetic first.', true);
+      if (playerAlreadyOwnGift(type, id)) return statusText(statusEl, `Denied: ${player.username || 'This player'} already owns this ${type}.`, true);
       if (!(await immersiveConfirm(`Send ${giftSelect.selectedOptions[0].textContent} to ${player.username || 'this player'} as a free gift?`))) return;
       const btn = giftBox.querySelector('.giftBtn'); btn.disabled = true; statusText(statusEl, 'Sending gift…');
       try {
