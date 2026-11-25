@@ -90,6 +90,16 @@
     .cosmetic-edit-form .field textarea{min-height:64px;resize:vertical}
     @media(max-width:560px){.form-grid{grid-template-columns:1fr}.cosmetic-form{padding:12px}}
 
+
+    .admin-feature-box{margin-top:14px;padding:14px;background:#0d1119;border:1px solid var(--line);border-radius:10px}
+    .admin-cosmetic-modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.72)}
+    .admin-cosmetic-modal[hidden]{display:none}
+    .admin-cosmetic-modal-card{width:min(520px,100%);background:#141821;border:1px solid #394456;border-radius:14px;padding:20px;box-shadow:0 24px 80px #0009}
+    .admin-cosmetic-modal-card h3{margin:0 0 8px}
+    .admin-cosmetic-options{display:grid;gap:10px;margin:16px 0}
+    .admin-cosmetic-options label{display:flex;gap:10px;align-items:center;background:#0d1119;border:1px solid var(--line);border-radius:9px;padding:10px}
+    .admin-cosmetic-options input{width:auto}
+    .admin-cosmetic-modal-actions{display:flex;gap:8px;flex-wrap:wrap}
     .empty { color:var(--muted); text-align:center; padding:28px 10px; border:1px dashed var(--line); border-radius:12px }
     footer { color:#6f7a8c; font-size:12px; text-align:center; margin:18px 0 }
     @media(max-width:560px) { .wrap{margin:24px auto}.panel{padding:18px}header{align-items:flex-start}.row{align-items:stretch;flex-direction:column}.row button{width:100%} }
@@ -793,7 +803,16 @@
         <div class="bulk-actions">
           <button type="button" class="unlockAllBtn">Unlock all cosmetics (incl. emotes and shoes)</button>
           <button type="button" class="removeAllBtn danger">Remove all / Reset account</button>
+          <button type="button" class="removeCosmeticsOnlyBtn danger">Remove cosmetics only</button>
         </div>
+      </div>
+      <div class="admin-feature-box giftingLockBox">
+        <strong>Manage gifting lock for this player's friends</strong>
+        <div class="sub">Search by username. Select a friend to remove or restore their gifting lock.</div>
+        <label class="field" style="margin-top:10px">Search friends<input class="giftingFriendSearch" type="search" maxlength="50" placeholder="Search friends by username…" autocomplete="off"></label>
+        <label class="field" style="margin-top:10px">Friend<select class="giftingFriendSelect"><option value="">Load friends first</option></select></label>
+        <div class="actions"><button type="button" class="loadGiftingFriendsBtn secondary">Load friends</button><button type="button" class="unlockGiftingBtn">Remove gifting lock</button><button type="button" class="lockGiftingBtn secondary">Put gifting lock back</button></div>
+        <div class="status giftingLockStatus" aria-live="polite"></div>
       </div>
       <div class="status editStatus" aria-live="polite"></div>`;
     card.append(controls);
@@ -1063,6 +1082,21 @@
       if (typed === 'RESET ACCOUNT') runBulkAction('remove_all');
       else statusText(editStatus, 'Account reset cancelled.');
     });
+    // Remove cosmetics only: custom checkbox modal, exact REMOVE confirmation, dedicated backend RPC.
+    controls.querySelector('.removeCosmeticsOnlyBtn').addEventListener('click', async () => {
+      const modal=document.createElement('div');modal.className='admin-cosmetic-modal';
+      modal.innerHTML=`<div class="admin-cosmetic-modal-card" role="dialog" aria-modal="true" aria-labelledby="removeCosmeticTitle"><h3 id="removeCosmeticTitle">Remove cosmetics only</h3><p class="removeCosmeticsTarget"></p><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" class="removeCosmeticsSelectAll"> <strong>Select all</strong></label><div class="admin-cosmetic-options"><label><input type="checkbox" value="skin" class="removeCosmeticType"> Skins</label><label><input type="checkbox" value="pickaxe" class="removeCosmeticType"> Pickaxes</label><label><input type="checkbox" value="shoes" class="removeCosmeticType"> Shoes</label><label><input type="checkbox" value="emote" class="removeCosmeticType"> Emotes</label></div><div class="status removeCosmeticsModalStatus"></div><div class="admin-cosmetic-modal-actions"><button type="button" class="removeCosmeticsConfirm danger">Continue</button><button type="button" class="removeCosmeticsCancel secondary">Cancel</button></div></div>`;
+      document.body.append(modal);modal.querySelector('.removeCosmeticsTarget').textContent=`This removes selected cosmetics from ${player.username||'this player'} without changing XP, level, prestige, coins, or other account progression.`;const boxes=[...modal.querySelectorAll('.removeCosmeticType')],all=modal.querySelector('.removeCosmeticsSelectAll'),close=()=>modal.remove();
+      all.addEventListener('change',()=>boxes.forEach(cb=>cb.checked=all.checked));boxes.forEach(cb=>cb.addEventListener('change',()=>all.checked=boxes.every(x=>x.checked)));modal.querySelector('.removeCosmeticsCancel').addEventListener('click',close);modal.addEventListener('click',e=>{if(e.target===modal)close();});
+      modal.querySelector('.removeCosmeticsConfirm').addEventListener('click',async()=>{const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);if(!selected.length){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Select at least one cosmetic category.',true);return;}const typed=await immersivePrompt('This permanently removes the selected cosmetic categories from this account. Type REMOVE to confirm:');if(typed!=='REMOVE'){statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removal cancelled.');return;}const b=modal.querySelector('.removeCosmeticsConfirm');b.disabled=true;statusText(modal.querySelector('.removeCosmeticsModalStatus'),'Removing selected cosmetics…');try{const {error}=await sb.rpc('hitta_admin_remove_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;close();await refreshSearch(player.user_id,`Selected cosmetics removed from ${player.username||'player'}. Progression and currency were preserved.`);}catch(e){statusText(modal.querySelector('.removeCosmeticsModalStatus'),e.message||'Could not remove cosmetics.',true);b.disabled=false;}});
+    });
+    // Friends gifting-lock controls. Backend RPCs are admin-protected and require the accompanying migration.
+    const giftingBox=controls.querySelector('.giftingLockBox'),giftingSearch=giftingBox.querySelector('.giftingFriendSearch'),giftingSelect=giftingBox.querySelector('.giftingFriendSelect'),giftingStatus=giftingBox.querySelector('.giftingLockStatus');let giftingFriends=[];
+    const populateGiftingFriends=()=>{const q=giftingSearch.value.trim().toLowerCase();const list=giftingFriends.filter(f=>!q||String(f.username||'').toLowerCase().includes(q));giftingSelect.replaceChildren();list.forEach(f=>{const o=document.createElement('option');o.value=f.user_id;o.textContent=f.username||'Player';giftingSelect.append(o);});if(!list.length){const o=document.createElement('option');o.value='';o.textContent='No matching friends';giftingSelect.append(o);} };
+    giftingSearch.addEventListener('input',populateGiftingFriends);
+    giftingBox.querySelector('.loadGiftingFriendsBtn').addEventListener('click',async()=>{const b=giftingBox.querySelector('.loadGiftingFriendsBtn');b.disabled=true;statusText(giftingStatus,'Loading friends…');try{const {data,error}=await sb.rpc('hitta_admin_list_player_friends',{p_target_user_id:player.user_id});if(error)throw error;giftingFriends=Array.isArray(data)?data:(Array.isArray(data?.friends)?data.friends:[]);populateGiftingFriends();statusText(giftingStatus,`${giftingFriends.length} friend(s) loaded. Search and select a username.`);}catch(e){statusText(giftingStatus,e.message||'Could not load friends.',true);}finally{b.disabled=false;}});
+    const setGiftingLock=async locked=>{const friendId=giftingSelect.value;if(!friendId)return statusText(giftingStatus,'Select a friend first.',true);const friend=giftingFriends.find(f=>String(f.user_id)===String(friendId));const label=friend?.username||'this friend';if(!(await immersiveConfirm(`${locked?'Put gifting lock back on':'Remove gifting lock for'} ${label}?`)))return;const b=giftingBox.querySelector(locked?'.lockGiftingBtn':'.unlockGiftingBtn');b.disabled=true;statusText(giftingStatus,locked?'Applying gifting lock…':'Removing gifting lock…');try{const {error}=await sb.rpc('hitta_admin_set_gifting_lock',{p_target_user_id:player.user_id,p_friend_user_id:friendId,p_locked:locked});if(error)throw error;statusText(giftingStatus,locked?`Gifting lock restored for ${label}.`:`Gifting lock removed for ${label}.`);}catch(e){statusText(giftingStatus,e.message||'Could not update gifting lock.',true);}finally{b.disabled=false;}};
+    giftingBox.querySelector('.unlockGiftingBtn').addEventListener('click',()=>setGiftingLock(false));giftingBox.querySelector('.lockGiftingBtn').addEventListener('click',()=>setGiftingLock(true));
     const banBox=document.createElement('section');banBox.className='editbox';
     banBox.innerHTML=`<strong>Ban player</strong>
     <div class="sub banCurrent">Checking ban status…</div>
