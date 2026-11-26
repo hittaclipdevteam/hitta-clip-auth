@@ -923,7 +923,7 @@
     const giftSelect = giftBox.querySelector('.giftItem');
     const giftSearch = giftBox.querySelector('.giftSearch');
     const giftMatchCount = giftBox.querySelector('.giftMatchCount');
-    const giftCatalog = catalogItems.filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type) && i.active !== false);
+    const giftCatalog = catalogItems.filter(i => ['skin','pickaxe','emote','shoes'].includes(i.type));
     function fillGiftItems() {
       const q = giftSearch.value.trim().toLowerCase();
       const matches = giftCatalog.filter(i => !q || [i.name,i.id,i.type,i.rarity,i.description].some(v => String(v || '').toLowerCase().includes(q)));
@@ -933,7 +933,7 @@
         const o = document.createElement('option');
         o.value = i.type + ':' + i.id;
         const owned = playerAlreadyOwnGift(i.type, i.id);
-        o.textContent = `${i.name} · ${i.type} · ${i.rarity}${owned ? ' · OWNED' : ''}`;
+        o.textContent = `${i.name} · ${i.type} · ${i.rarity}${i.active === false ? ' (disabled)' : ''}${owned ? ' · OWNED' : ''}`;
         o.disabled = owned;
         giftSelect.append(o);
       });
