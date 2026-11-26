@@ -888,10 +888,11 @@
       </div>
       <div class="editbox">
         <strong>Bulk account actions</strong>
-        <div class="sub">Unlock every active catalog cosmetic (including emotes and shoes), or reset this account completely.</div>
+        <div class="sub">Unlock every active catalog cosmetic, unlock only certain types, or reset this account completely.</div>
         <div class="bulk-actions">
           <button type="button" class="unlockAllBtn">Unlock all cosmetics (incl. emotes and shoes)</button>
           <button type="button" class="removeAllBtn danger">Remove all / Reset account</button>
+          <button type="button" class="unlockCosmeticsByTypeBtn">Unlock cosmetics by type</button>
           <button type="button" class="removeCosmeticsOnlyBtn danger">Remove cosmetics only</button>
         </div>
       </div>
@@ -1227,7 +1228,7 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
       }
     };
     controls.querySelector('.unlockAllBtn').addEventListener('click', async () => {
-      const count = catalogItems.filter(item => item.type === 'skin' || item.type === 'pickaxe' || item.type === 'emote').length;
+      const count = catalogItems.filter(item => ['skin','pickaxe','emote','shoes'].includes(item.type) && item.active !== false).length;
       if (await immersiveConfirm(`Unlock all ${count} active catalog cosmetics for ${player.username || 'this player'}?`)) runBulkAction('unlock_all');
     });
     controls.querySelector('.removeAllBtn').addEventListener('click', async () => {
@@ -1235,6 +1236,27 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
       const typed = await immersivePrompt('Type RESET ACCOUNT to confirm this destructive action:');
       if (typed === 'RESET ACCOUNT') runBulkAction('remove_all');
       else statusText(editStatus, 'Account reset cancelled.');
+    });
+    // Unlock cosmetics by type: same checkbox modal as "Remove cosmetics only", unlocks every active item of the chosen types.
+    controls.querySelector('.unlockCosmeticsByTypeBtn').addEventListener('click', async () => {
+      const typeCount=t=>catalogItems.filter(i=>i.type===t&&i.active!==false).length;
+      const modal=document.createElement('div');modal.className='admin-cosmetic-modal';
+      modal.innerHTML=`<div class="admin-cosmetic-modal-card" role="dialog" aria-modal="true" aria-labelledby="unlockCosmeticTitle"><h3 id="unlockCosmeticTitle">Unlock cosmetics by type</h3><p class="removeCosmeticsTarget"></p><label class="removeCosmeticsSelectAllRow"><input type="checkbox" class="unlockCosmeticsSelectAll"><strong>Select all categories</strong></label><div class="admin-cosmetic-options"><label><input type="checkbox" value="skin" class="unlockCosmeticType"> Skins (${typeCount('skin')})</label><label><input type="checkbox" value="pickaxe" class="unlockCosmeticType"> Pickaxes (${typeCount('pickaxe')})</label><label><input type="checkbox" value="shoes" class="unlockCosmeticType"> Shoes (${typeCount('shoes')})</label><label><input type="checkbox" value="emote" class="unlockCosmeticType"> Emotes (${typeCount('emote')})</label></div><div class="status unlockCosmeticsModalStatus"></div><div class="admin-cosmetic-modal-actions"><button type="button" class="unlockCosmeticsConfirm">Unlock</button><button type="button" class="unlockCosmeticsCancel secondary">Cancel</button></div></div>`;
+      document.body.append(modal);
+      modal.querySelector('.removeCosmeticsTarget').textContent=`Unlocks every active cosmetic of the selected types for ${player.username||'this player'}. Items they already own are skipped. Coins and progression are not changed.`;
+      const boxes=[...modal.querySelectorAll('.unlockCosmeticType')],all=modal.querySelector('.unlockCosmeticsSelectAll'),msg=modal.querySelector('.unlockCosmeticsModalStatus'),close=()=>modal.remove();
+      all.addEventListener('change',()=>boxes.forEach(cb=>cb.checked=all.checked));boxes.forEach(cb=>cb.addEventListener('change',()=>all.checked=boxes.every(x=>x.checked)));
+      modal.querySelector('.unlockCosmeticsCancel').addEventListener('click',close);modal.addEventListener('click',e=>{if(e.target===modal)close();});
+      modal.querySelector('.unlockCosmeticsConfirm').addEventListener('click',async()=>{
+        const selected=boxes.filter(cb=>cb.checked).map(cb=>cb.value);
+        if(!selected.length){statusText(msg,'Select at least one cosmetic category.',true);return;}
+        const b=modal.querySelector('.unlockCosmeticsConfirm');b.disabled=true;statusText(msg,'Unlocking selected cosmetics…');
+        try{const {data,error}=await sb.rpc('hitta_admin_unlock_player_cosmetics',{p_target_user_id:player.user_id,p_types:selected});if(error)throw error;
+          close();const n=Number(data?.unlocked||0),f=Number(data?.failed||0);
+          await refreshSearch(player.user_id,`Unlocked ${n} cosmetic(s) for ${player.username||'player'}.`+(f?` ${f} could not be unlocked (see the browser console).`:''));
+          if(f)console.warn('Unlock by type failures:',data?.errors);}
+        catch(e){statusText(msg,e.message||'Could not unlock cosmetics.',true);b.disabled=false;}
+      });
     });
     // Remove cosmetics only: custom checkbox modal, exact REMOVE confirmation, dedicated backend RPC.
     controls.querySelector('.removeCosmeticsOnlyBtn').addEventListener('click', async () => {
