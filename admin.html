@@ -1730,7 +1730,14 @@ function clanFxDigits(n){let s='';for(let i=0;i<n;i++)s+=Math.random()<.5?'0':'1
     const displaySkins = hasStarterSkin ? skins : [{id:'skin1',type:'skin',name:'Starter Skin',rarity:'common',price:0,active:true,__virtualStarter:true}, ...skins];
     const renderType = (type, allItems, searchId, resultsId, countId) => {
       const query = String($(searchId)?.value || '').trim().toLocaleLowerCase();
-      const matches = query ? allItems.filter(item => [item.name,item.id,item.rarity,item.description].some(value => String(value || '').toLocaleLowerCase().includes(query))) : allItems;
+      const filtered = query ? allItems.filter(item => [item.name,item.id,item.rarity,item.description].some(value => String(value || '').toLocaleLowerCase().includes(query))) : allItems;
+      // Sort by rarity, highest first (Exclusive → Common). Same rarity: higher price first, then name A–Z.
+      const rarityRank = item => { const i = RARITIES.indexOf(String(item.rarity || 'common').trim().toLowerCase()); return i === -1 ? -1 : i; };
+      const matches = [...filtered].sort((a, b) =>
+        rarityRank(b) - rarityRank(a) ||
+        (Number(b.price) || 0) - (Number(a.price) || 0) ||
+        String(a.name || '').localeCompare(String(b.name || ''))
+      );
       $(countId).textContent = query ? `${matches.length} of ${allItems.length} items` : `${allItems.length} items`;
       const host = $(resultsId); host.replaceChildren();
       if (!matches.length) {
